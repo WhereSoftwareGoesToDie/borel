@@ -7,7 +7,7 @@
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Borel.Server.Log where
+module Borel.Log where
 
 import           Control.Applicative
 import           Control.Monad.IO.Class

@@ -15,6 +15,7 @@ module Borel.Types.Core
   , Quantity
   , Customer(..)
   , Metric(..)
+  , MetricIdentifier
   , mkMetric, streamSummary
   ) where
 
@@ -38,12 +39,15 @@ type Quantity = Word64
 newtype Customer = Customer { cid :: Int }
   deriving (Parsable, Eq, Ord, Read)
 
+type MetricIdentifier = ( Text        -- the sourcedict key, I think, just importing
+                        , Maybe Text) -- value
+
 data Metric = Metric
     { mCustomer   :: Customer
     , mResource   :: Resource
     , mUOM        :: UOM
     , mQuantity   :: Quantity
-    , mIdentifier :: (Text, Maybe Text)
+    , mIdentifier :: MetricIdentifier
     } deriving Show
 
 mkMetric :: Customer -> Resource -> Quantity -> (Text, Maybe Text) -> Metric

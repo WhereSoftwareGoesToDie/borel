@@ -20,13 +20,16 @@ library
                      Borel.Ceilometer
                      Borel.Server
                      Borel.Log
+                     Borel.Source
 
   other-modules:     Borel.Types.Core
                      Borel.Types.Resource
                      Borel.Ceilometer.Consolidated
                      Borel.Ceilometer.Cumulative
                      Borel.Ceilometer.Gauge
+                     Borel.Server.Types
                      Borel.Server.WAI
+                     Borel.Source.HTTP
 
   build-depends:     base >=4.7 && <4.8,
                      containers >=0.5 && <0.6,

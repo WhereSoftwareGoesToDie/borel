@@ -1,6 +1,9 @@
+-- | WAI helpers to stream responses from the Borel server to a web client
+--
 -- A clone of some of pipes-wai's functionality to work with Scotty.
 -- once https://github.com/scotty-web/scotty/issues/80 is resolved, we
 -- can get rid of this and use pipes-wai.
+--
 module Borel.Server.WAI
        ( Flush(..)
        , responseProducer )

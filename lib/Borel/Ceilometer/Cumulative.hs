@@ -22,5 +22,6 @@ cumulativeQuery  :: (MonadSafe m, MonadLogger m, ReaderT BorelEnv `In` m)
 cumulativeQuery o a s e =
   logInfoThen (concat ["Running cumulative query for address ", show a]) $ do
     env <- liftT ask
-    v   <- lift $ aggregateCumulativePoints $ metrics (marquiseReader $ config env) o a s e
+    v   <- lift $ aggregateCumulativePoints
+        $ metrics (_readerURI $ config env) o a s e
     one v

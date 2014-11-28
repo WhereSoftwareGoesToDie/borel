@@ -21,6 +21,7 @@ library
                      Borel.Server
                      Borel.Log
                      Borel.Source
+                     Borel.Query
 
   other-modules:     Borel.Types.Core
                      Borel.Types.Resource

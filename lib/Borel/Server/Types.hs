@@ -29,7 +29,7 @@ import           Pipes.Lift
 
 import           Marquise.Types
 import           Vaultaire.Types
-
+import           Borel.Types.Resource (ResourceGroup)
 
 data Domain = forall a. Source a => Domain a
 
@@ -44,17 +44,18 @@ data BorelEnv = BorelEnv
 --   indexed by the type of resource sources
 --
 class Source sauce where
-  originsOf :: sauce -> [Origin] -- ^ Resource providers to origins which track that provider
-  sourceKey :: sauce -> Text     -- ^ Resource provider key in Vaultaire metadata
+  originsOf :: sauce -> [Origin]      -- ^ Resource providers to origins which track that provider
+  sourceKey :: sauce -> Text          -- ^ Resource provider key in Vaultaire metadata
+  domain    :: ResourceGroup -> sauce -- ^ Each logical group of resources should be managed by one domain
 
 -- | Configure the Vaultaire-related backends that Borel uses,
 --   e.g. Marquise, Chevalier.
 --
 data BackendConfig = BackendConfig
-  { origins         :: [Origin]
-  , marquiseReader  :: URI
-  , chev            :: URI
-  , domain          :: Domain }
+  { _origins         :: [Origin]
+  , _readerURI       :: URI
+  , _chevalierURI    :: URI
+  , _domain          :: Domain }
 
 defaultStart :: IO TimeStamp
 defaultStart = getCurrentTimeNanoseconds >>= return . addTimeStamp ((-7) * posixDayLength)

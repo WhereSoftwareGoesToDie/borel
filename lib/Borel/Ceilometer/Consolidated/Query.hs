@@ -137,7 +137,7 @@ eventQuery :: ( MonadSafe m
 eventQuery rGroup rs o a s e =
   logInfoThen (concat ["Running event query for address ", show a]) $ do
     env <- liftT ask
-    let resQuery = parseConsolidated rGroup (eventMetrics (marquiseReader $ config env) o a)
+    let resQuery = parseConsolidated rGroup (eventMetrics (_readerURI $ config env) o a)
     summary <- lift $ summariseEvents rGroup s e resQuery
     summaryToResourceQuery rs summary
 
@@ -152,6 +152,6 @@ pollsterQuery :: ( MonadSafe m
 pollsterQuery rGroup rs o a s e =
   logInfoThen (concat ["Running pollster query for address ", show a]) $ do
     env <- liftT ask
-    let resQuery = parseConsolidated rGroup (metrics (marquiseReader $ config env) o a s e)
+    let resQuery = parseConsolidated rGroup (metrics (_readerURI $ config env) o a s e)
     summary <- lift $ summarisePollster rGroup s e resQuery
     summaryToResourceQuery rs summary

@@ -21,4 +21,4 @@ gaugeQuery :: (MonadSafe m, MonadLogger m, ReaderT BorelEnv `In` m)
 gaugeQuery o a s e =
   logInfoThen (concat ["Running gauge query for address ", show a]) $ do
     env <- liftT ask
-    sumPoints $ metrics (marquiseReader $ config env) o a s e
+    sumPoints $ metrics (_readerURI $ config env) o a s e

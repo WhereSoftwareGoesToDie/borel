@@ -12,7 +12,7 @@
 module Borel.Types.Resource
   ( -- * Resource
     Resource(..)
-  , ResGroup(..), ResMeasure(..)
+  , ResourceGroup(..), ResMeasure(..)
   , UOM, BaseUOM, Prefix
     -- * Enumeration
   , resourceGroups, resourceMeasures
@@ -22,7 +22,7 @@ module Borel.Types.Resource
   , instanceM1Tiny, instanceM1Small, instanceM1Medium, instanceM1Large, instanceM1XLarge
   , ipv4, volumes, vcpus, memory
     -- * Mappings
-  , report, prefixWeighting
+  , report, serialise, prefixWeighting
   ) where
 
 import           Data.Aeson
@@ -36,7 +36,7 @@ import           Vaultaire.Types
 
 -- | Resource attribute: logical groups
 --
-data ResGroup
+data ResourceGroup
   = InstanceGroup
   | IPTxGroup
   | IPRxGroup
@@ -49,6 +49,8 @@ data ResGroup
   | IPFloatingGroup
   | VCPUGroup
   | MemoryGroup
+  | ImageGroup
+  | SnapshotGroup
   deriving (Eq, Ord, Enum)
 
 -- | Resource attribute: how it is measured and reported by OpenStack.
@@ -88,11 +90,11 @@ data Resource = Resource
     { deserialise :: String -- ^ what it parses from
     , pretty      :: String -- ^ what it pretty prints to
     , uom         :: UOM
-    , group       :: ResGroup
+    , group       :: ResourceGroup
     } deriving (Eq, Ord)
 
 
-resourceGroups :: [ResGroup]
+resourceGroups :: [ResourceGroup]
 resourceGroups = [InstanceGroup ..]
 
 resourceMeasures :: [ResMeasure]
@@ -108,7 +110,7 @@ prefixWeighting Nano = 10^(-9 :: Int)
 prefixWeighting Mebi = 1024^(2 :: Int)
 prefixWeighting Mega = 10^(6 :: Int)
 
-report :: ResGroup -> ResMeasure
+report :: ResourceGroup -> ResMeasure
 report IPTxGroup       = Gauge
 report IPRxGroup       = Gauge
 report InstanceGroup   = ConsolidatedPollster
@@ -121,6 +123,8 @@ report NeutronOutGroup = Cumulative
 report CPUGroup        = Cumulative
 report VolumeGroup     = ConsolidatedEvent
 report IPFloatingGroup = ConsolidatedEvent
+report ImageGroup      = Gauge
+report SnapshotGroup   = ConsolidatedEvent
 
 
 -- OpenStack Resources ---------------------------------------------------------
@@ -237,7 +241,7 @@ memory = Resource
 
 -- (De)-Serialistion -----------------------------------------------------------
 
-serialise :: ResGroup -> String
+serialise :: ResourceGroup -> String
 serialise IPTxGroup       = "tx"
 serialise IPRxGroup       = "rx"
 serialise CPUGroup        = "cpu"
@@ -250,10 +254,12 @@ serialise InstanceGroup   = "instance_flavor"
 serialise VolumeGroup     = "volumes"
 serialise VCPUGroup       = "instance_vcpus"
 serialise MemoryGroup     = "instance_ram"
+serialise ImageGroup      = "image.size"
+serialise SnapshotGroup   = "snapshot.size"
 
 -- show/read
 
-instance Show ResGroup where
+instance Show ResourceGroup where
     show = serialise
 
 instance Show Prefix where

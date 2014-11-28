@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE Rank2Types        #-}
 {-# LANGUAGE TypeOperators     #-}
+{-# LANGUAGE ExistentialQuantification #-}
 
 -- | Types required to run a Borel server and query, this includes
 --
@@ -13,8 +14,8 @@ module Borel.Server.Types
          BorelEnv(..), BackendConfig(..)
        , defaultStart, defaultEnd
        , runBorel
-         -- * Provider of resources, e.g. OpenStack and SomethingElse (tm)
-       , Provider(..)
+         -- * Domain of resources, e.g. OpenStack and SomethingElse (tm)
+       , Domain(..), Source(..)
        )
 where
 
@@ -30,9 +31,11 @@ import           Marquise.Types
 import           Vaultaire.Types
 
 
+data Domain = forall a. Source a => Domain a
+
 -- | Parameters for one Borel query.
-data BorelEnv sources = BorelEnv
-  { config :: BackendConfig sources
+data BorelEnv = BorelEnv
+  { config :: BackendConfig
   , start  :: TimeStamp
   , end    :: TimeStamp }
 
@@ -40,19 +43,18 @@ data BorelEnv sources = BorelEnv
 --   e.g. OpenStack and SomethingElse (tm)
 --   indexed by the type of resource sources
 --
-data Provider sauce = Provider
-  { originsOf :: sauce -> [Origin] -- ^ Resource providers to origins which track that provider
-  , sourceKey :: sauce -> Text     -- ^ Resource provider key in Vaultaire metadata
-  }
+class Source sauce where
+  originsOf :: sauce -> [Origin] -- ^ Resource providers to origins which track that provider
+  sourceKey :: sauce -> Text     -- ^ Resource provider key in Vaultaire metadata
 
 -- | Configure the Vaultaire-related backends that Borel uses,
 --   e.g. Marquise, Chevalier.
 --
-data BackendConfig sources = BackendConfig
+data BackendConfig = BackendConfig
   { origins         :: [Origin]
   , marquiseReader  :: URI
   , chev            :: URI
-  , provider        :: Provider sources }
+  , domain          :: Domain }
 
 defaultStart :: IO TimeStamp
 defaultStart = getCurrentTimeNanoseconds >>= return . addTimeStamp ((-7) * posixDayLength)
@@ -63,9 +65,9 @@ defaultEnd :: IO TimeStamp
 defaultEnd = getCurrentTimeNanoseconds
 
 runBorel :: Monad m
-          => BackendConfig sources
+          => BackendConfig
           -> TimeStamp
           -> TimeStamp
-          -> Producer x (ReaderT (BorelEnv sources) m) ()
+          -> Producer x (ReaderT BorelEnv m) ()
           -> Producer x m ()
 runBorel conf s e = runReaderP (BorelEnv conf s e)

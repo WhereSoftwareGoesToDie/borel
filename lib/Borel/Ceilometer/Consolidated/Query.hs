@@ -12,20 +12,16 @@ import           Control.Monad
 import           Control.Monad.Logger
 import           Control.Monad.Trans.Reader
 import           Data.Binary
-import           Data.Binary.Get
 import           Data.Map                               (Map)
 import qualified Data.Map                               as M
-import           Data.Word
 import           Pipes
 import qualified Pipes.Prelude                          as P
 import           Pipes.Safe
 
 
 import           Marquise.Client
-import           Marquise.Types
 import           Vaultaire.Control.Lift
-import           Vaultaire.Query                        hiding (readSimple)
-import           Vaultaire.Types
+import           Vaultaire.Query
 
 import           Borel.Types
 import           Borel.Ceilometer.Consolidated.Parse
@@ -42,6 +38,7 @@ matchPayloadAndResource IPAlloc    = (== ipv4)
 matchPayloadAndResource (Volume _) = (== volumes)
 matchPayloadAndResource (Memory _) = (== memory)
 matchPayloadAndResource (VCpu _)   = (== vcpus)
+matchPayloadAndResource _          = const False
 
 payloadWeight :: Payload -> Word64
 payloadWeight (Volume x) = fromIntegral x
@@ -83,6 +80,7 @@ summariseEvents rGroup (TimeStamp start) (TimeStamp end) (Select points) = summa
         | otherwise                    = False
     filterRelevant = P.filter endpointPred
 
+billableEvent :: ResourceGroup -> ConsolidatedPoint -> Bool
 billableEvent rGroup EventPoint{..}    = billableVerb rGroup eventVerb
 billableEvent _ PollsterPoint{..} = True
 

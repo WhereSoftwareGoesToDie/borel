@@ -7,14 +7,11 @@ where
 import           Control.Monad.Logger
 import           Control.Monad.Trans.Reader
 import           Data.Word
-import           Pipes
-import qualified Pipes.Prelude              as P
 import           Pipes.Safe
 
 import           Marquise.Client
 import           Vaultaire.Control.Lift
-import           Vaultaire.Query            hiding (readSimple)
-import           Vaultaire.Types
+import           Vaultaire.Query
 
 import           Borel.Types
 import           Borel.Log

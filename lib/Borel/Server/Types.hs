@@ -25,7 +25,6 @@ import           Pipes.Lift
 
 import           Marquise.Types
 import           Vaultaire.Types
-import           Borel.Types.Core     (Domain)
 
 
 -- | Parameters for one Borel query.
@@ -39,8 +38,7 @@ data BorelEnv = BorelEnv
 data BackendConfig = BackendConfig
   { _origins         :: [Origin]
   , _readerURI       :: URI
-  , _chevalierURI    :: URI
-  , _domain          :: Domain }
+  , _chevalierURI    :: URI }
 
 defaultStart :: IO TimeStamp
 defaultStart = getCurrentTimeNanoseconds >>= return . addTimeStamp ((-7) * posixDayLength)
@@ -51,9 +49,9 @@ defaultEnd :: IO TimeStamp
 defaultEnd = getCurrentTimeNanoseconds
 
 runBorel :: Monad m
-          => BackendConfig
-          -> TimeStamp
-          -> TimeStamp
-          -> Producer x (ReaderT BorelEnv m) ()
-          -> Producer x m ()
+         => BackendConfig
+         -> TimeStamp
+         -> TimeStamp
+         -> Producer x (ReaderT BorelEnv m) ()
+         -> Producer x m ()
 runBorel conf s e = runReaderP (BorelEnv conf s e)

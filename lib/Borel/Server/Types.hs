@@ -2,7 +2,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE Rank2Types        #-}
 {-# LANGUAGE TypeOperators     #-}
-{-# LANGUAGE ExistentialQuantification #-}
 
 -- | Types required to run a Borel server and query, this includes
 --
@@ -14,8 +13,6 @@ module Borel.Server.Types
          BorelEnv(..), BackendConfig(..)
        , defaultStart, defaultEnd
        , runBorel
-         -- * Domain of resources, e.g. OpenStack and SomethingElse (tm)
-       , Domain(..), Source(..)
        )
 where
 
@@ -30,8 +27,8 @@ import           Pipes.Lift
 import           Marquise.Types
 import           Vaultaire.Types
 import           Borel.Types.Resource (ResourceGroup)
+import           Borel.Types.Core     (Domain)
 
-data Domain = forall a. Source a => Domain a
 
 -- | Parameters for one Borel query.
 data BorelEnv = BorelEnv
@@ -39,18 +36,8 @@ data BorelEnv = BorelEnv
   , start  :: TimeStamp
   , end    :: TimeStamp }
 
--- | Interface to deal with different source of resources,
---   e.g. OpenStack and SomethingElse (tm)
---   indexed by the type of resource sources
---
-class Source sauce where
-  originsOf :: sauce -> [Origin]      -- ^ Resource providers to origins which track that provider
-  sourceKey :: sauce -> Text          -- ^ Resource provider key in Vaultaire metadata
-  domain    :: ResourceGroup -> sauce -- ^ Each logical group of resources should be managed by one domain
-
 -- | Configure the Vaultaire-related backends that Borel uses,
 --   e.g. Marquise, Chevalier.
---
 data BackendConfig = BackendConfig
   { _origins         :: [Origin]
   , _readerURI       :: URI

@@ -12,12 +12,13 @@
 module Borel.Types.Resource
   ( -- * Resource
     Resource(..)
-  , ResourceGroup(..), ResMeasure(..)
+  , ResourceGroup(..), ResourceMeasure(..)
   , UOM, BaseUOM, Prefix
     -- * Enumeration
   , resourceGroups, resourceMeasures
-  , osResources
-    -- * Pre-defined OpenStack Resources
+  , allResources
+    -- * Pre-defined resources
+  , ipTx, ipRx
   , cpu, diskReads, diskWrites, neutronIn, neutronOut
   , instanceM1Tiny, instanceM1Small, instanceM1Medium, instanceM1Large, instanceM1XLarge
   , ipv4, volumes, vcpus, memory
@@ -55,7 +56,7 @@ data ResourceGroup
 
 -- | Resource attribute: how it is measured and reported by OpenStack.
 --
-data ResMeasure
+data ResourceMeasure
   = Cumulative
   | Gauge
   | ConsolidatedPollster
@@ -97,7 +98,7 @@ data Resource = Resource
 resourceGroups :: [ResourceGroup]
 resourceGroups = [InstanceGroup ..]
 
-resourceMeasures :: [ResMeasure]
+resourceMeasures :: [ResourceMeasure]
 resourceMeasures = [Cumulative ..]
 
 
@@ -110,7 +111,7 @@ prefixWeighting Nano = 10^(-9 :: Int)
 prefixWeighting Mebi = 1024^(2 :: Int)
 prefixWeighting Mega = 10^(6 :: Int)
 
-report :: ResourceGroup -> ResMeasure
+report :: ResourceGroup -> ResourceMeasure
 report IPTxGroup       = Gauge
 report IPRxGroup       = Gauge
 report InstanceGroup   = ConsolidatedPollster
@@ -127,18 +128,33 @@ report ImageGroup      = Gauge
 report SnapshotGroup   = ConsolidatedEvent
 
 
--- OpenStack Resources ---------------------------------------------------------
+--Resources --------------------------------------------------------------------
 
-osResources :: [Resource]
-osResources =
+allResources :: [Resource]
+allResources =
   [ cpu, diskReads, diskWrites, neutronIn, neutronOut
   , instanceM1Tiny, instanceM1Small, instanceM1Medium, instanceM1Large, instanceM1XLarge
   , volumes, vcpus, memory ]
 
+ipTx, ipRx :: Resource
 diskReads, diskWrites             :: Resource
 neutronIn, neutronOut             :: Resource
 cpu, vcpus, memory, ipv4, volumes :: Resource
 instanceM1Tiny, instanceM1Small, instanceM1Medium, instanceM1Large, instanceM1XLarge :: Resource
+
+ipTx = Resource
+  { deserialise = "ip-data-tx"
+  , pretty = "ip-data-tx"
+  , uom = UOM Base Byte
+  , group  = IPTxGroup
+  }
+
+ipRx = Resource
+  { deserialise = "ip-data-rx"
+  , pretty = "ip-data-rx"
+  , uom = UOM Base Byte
+  , group  = IPRxGroup
+  }
 
 cpu = Resource
   { deserialise = "cpu"

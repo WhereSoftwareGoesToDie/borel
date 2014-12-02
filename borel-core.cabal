@@ -26,6 +26,9 @@ library
   other-modules:     Borel.Types.Core
                      Borel.Types.Resource
                      Borel.Ceilometer.Consolidated
+                     Borel.Ceilometer.Consolidated.Types
+                     Borel.Ceilometer.Consolidated.Query
+                     Borel.Ceilometer.Consolidated.Parse
                      Borel.Ceilometer.Cumulative
                      Borel.Ceilometer.Gauge
                      Borel.Server.Types

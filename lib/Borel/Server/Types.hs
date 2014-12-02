@@ -17,7 +17,6 @@ module Borel.Server.Types
 where
 
 import           Control.Monad.Trans.Reader
-import           Data.Text                  (Text)
 import           Data.Time.Clock
 import           Data.Time.Clock.POSIX
 import           Network.URI
@@ -26,7 +25,6 @@ import           Pipes.Lift
 
 import           Marquise.Types
 import           Vaultaire.Types
-import           Borel.Types.Resource (ResourceGroup)
 import           Borel.Types.Core     (Domain)
 
 

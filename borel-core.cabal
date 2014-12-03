@@ -24,7 +24,7 @@ library
                      Borel.Query
 
   other-modules:     Borel.Types.Core
-                     Borel.Types.Resource
+                     Borel.Types.Metric
                      Borel.Ceilometer.Consolidated
                      Borel.Ceilometer.Consolidated.Types
                      Borel.Ceilometer.Consolidated.Query

@@ -16,9 +16,9 @@ module Borel.Types.Core
     Format(..)
   , Quantity
   , Customer(..)
-  , Metric(..)
-  , MetricIdentifier
-  , mkMetric, streamSummary
+  , Result(..)
+  , ResourceID
+  , mkResult, streamSummary
     -- * Domain of resources, e.g. OpenStack and SomethingElse (tm)
   , Domain(..)
   , domainOrigins, domainIdentKey, domainTagKey
@@ -36,7 +36,7 @@ import qualified Pipes.Prelude         as P
 import           Web.Scotty            (Parsable)
 
 import           Vaultaire.Types
-import           Borel.Types.Resource
+import           Borel.Types.Metric
 
 
 -- Resource provider interface -------------------------------------------------
@@ -51,10 +51,10 @@ data Domain = forall a. Providing a => Domain a
 --   e.g. OpenStack and SomethingElse (tm)
 --   indexed by the type of resource sources
 class Providing sauce where
-  originsOf   :: sauce -> [Origin]         -- ^ Resource providers to origins which track that provider
-  identKey    :: sauce -> Text             -- ^ FIXME: Mystery
-  domainKey   :: sauce -> Text             -- ^ FIXME: Mystery two
-  domain      :: ResourceGroup -> sauce    -- ^ Each logical group of resources should be managed by one domain
+  originsOf   :: sauce -> [Origin]       -- ^ Resource providers to origins which track that provider
+  identKey    :: sauce -> Text           -- ^ FIXME: Mystery
+  domainKey   :: sauce -> Text           -- ^ FIXME: Mystery two
+  domain      :: MetricGroup -> sauce    -- ^ Each logical group of resources should be managed by one domain
 
 -- boilerplate
 
@@ -72,19 +72,18 @@ type Quantity = Word64
 newtype Customer = Customer { cid :: Int }
   deriving (Parsable, Eq, Ord, Read)
 
-type MetricIdentifier = ( Text        -- the sourcedict key, I think, just importing
-                        , Maybe Text) -- value
+type ResourceID = ( Text, Maybe Text )
 
-data Metric = Metric
-    { mCustomer   :: Customer
-    , mResource   :: Resource
-    , mUOM        :: UOM
-    , mQuantity   :: Quantity
-    , mIdentifier :: MetricIdentifier
+data Result = Result
+    { resultCustomer   :: Customer
+    , resultMetric     :: Metric
+    , resultUOM        :: UOM
+    , resultQuantity   :: Quantity
+    , resultIdentifier :: ResourceID
     } deriving Show
 
-mkMetric :: Customer -> Resource -> Quantity -> (Text, Maybe Text) -> Metric
-mkMetric c r = Metric c r (uom r)
+mkResult :: Customer -> Metric -> Quantity -> (Text, Maybe Text) -> Result
+mkResult c r = Result c r (uom r)
 
 
 -- (De-)Serialisation ----------------------------------------------------------
@@ -94,10 +93,10 @@ instance Show Customer where
 
 $(deriveJSON defaultOptions ''Format)
 
-summarise :: Monad m => Producer Metric m () -> m (Map (Customer, Resource, UOM) Quantity)
-summarise = P.fold (\acc (Metric c r u q _) -> M.insertWith (+) (c, r, u) q acc) M.empty id
+summarise :: Monad m => Producer Result m () -> m (Map (Customer, Metric, UOM) Quantity)
+summarise = P.fold (\acc (Result c r u q _) -> M.insertWith (+) (c, r, u) q acc) M.empty id
 
-streamSummary :: Monad m => Producer Metric m () -> Producer B.ByteString m ()
+streamSummary :: Monad m => Producer Result m () -> Producer B.ByteString m ()
 streamSummary p = do
     summary <- lift $ summarise p
     mapM_ (\((c, r, u), q) -> yield $ format c r u q) $ M.assocs summary

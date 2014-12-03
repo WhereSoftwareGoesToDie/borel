@@ -9,14 +9,14 @@
 
 -- * Borel resource types
 --
-module Borel.Types.Resource
-  ( -- * Resource
-    Resource(..)
-  , ResourceGroup(..), ResourceMeasure(..)
+module Borel.Types.Metric
+  ( -- * Metric
+    Metric(..)
+  , MetricGroup(..), ResourceMeasure(..)
   , UOM, BaseUOM, Prefix
     -- * Enumeration
   , resourceGroups, resourceMeasures
-  , allResources
+  , allMetrics
     -- * Pre-defined resources
   , ipTx, ipRx
   , cpu, diskReads, diskWrites, neutronIn, neutronOut
@@ -35,9 +35,9 @@ import           Web.Scotty            (Parsable, parseParam, readEither)
 import           Vaultaire.Types
 
 
--- | Resource attribute: logical groups
+-- | Metric attribute: logical groups
 --
-data ResourceGroup
+data MetricGroup
   = InstanceGroup
   | IPTxGroup
   | IPRxGroup
@@ -54,7 +54,7 @@ data ResourceGroup
   | SnapshotGroup
   deriving (Eq, Ord, Enum)
 
--- | Resource attribute: how it is measured and reported by OpenStack.
+-- | Metric attribute: how it is measured and reported by OpenStack.
 --
 data ResourceMeasure
   = Cumulative
@@ -63,7 +63,7 @@ data ResourceMeasure
   | ConsolidatedEvent
   deriving (Show, Eq, Enum, Ord)
 
--- | Resource attribute: unit of measurement
+-- | Metric attribute: unit of measurement
 --
 data UOM
   = UOM Prefix BaseUOM
@@ -87,15 +87,15 @@ data BaseUOM
   | VCPU
   deriving (Eq, Ord)
 
-data Resource = Resource
+data Metric = Metric
     { deserialise :: String -- ^ what it parses from
     , pretty      :: String -- ^ what it pretty prints to
     , uom         :: UOM
-    , group       :: ResourceGroup
+    , group       :: MetricGroup
     } deriving (Eq, Ord)
 
 
-resourceGroups :: [ResourceGroup]
+resourceGroups :: [MetricGroup]
 resourceGroups = [InstanceGroup ..]
 
 resourceMeasures :: [ResourceMeasure]
@@ -111,7 +111,7 @@ prefixWeighting Nano = 10^(-9 :: Int)
 prefixWeighting Mebi = 1024^(2 :: Int)
 prefixWeighting Mega = 10^(6 :: Int)
 
-report :: ResourceGroup -> ResourceMeasure
+report :: MetricGroup -> ResourceMeasure
 report IPTxGroup       = Gauge
 report IPRxGroup       = Gauge
 report InstanceGroup   = ConsolidatedPollster
@@ -130,124 +130,124 @@ report SnapshotGroup   = ConsolidatedEvent
 
 --Resources --------------------------------------------------------------------
 
-allResources :: [Resource]
-allResources =
+allMetrics :: [Metric]
+allMetrics =
   [ cpu, diskReads, diskWrites, neutronIn, neutronOut
   , instanceM1Tiny, instanceM1Small, instanceM1Medium, instanceM1Large, instanceM1XLarge
   , volumes, vcpus, memory ]
 
-ipTx, ipRx :: Resource
-diskReads, diskWrites             :: Resource
-neutronIn, neutronOut             :: Resource
-cpu, vcpus, memory, ipv4, volumes :: Resource
-instanceM1Tiny, instanceM1Small, instanceM1Medium, instanceM1Large, instanceM1XLarge :: Resource
+ipTx, ipRx :: Metric
+diskReads, diskWrites             :: Metric
+neutronIn, neutronOut             :: Metric
+cpu, vcpus, memory, ipv4, volumes :: Metric
+instanceM1Tiny, instanceM1Small, instanceM1Medium, instanceM1Large, instanceM1XLarge :: Metric
 
-ipTx = Resource
+ipTx = Metric
   { deserialise = "ip-data-tx"
   , pretty = "ip-data-tx"
   , uom = UOM Base Byte
   , group  = IPTxGroup
   }
 
-ipRx = Resource
+ipRx = Metric
   { deserialise = "ip-data-rx"
   , pretty = "ip-data-rx"
   , uom = UOM Base Byte
   , group  = IPRxGroup
   }
 
-cpu = Resource
+cpu = Metric
   { deserialise = "cpu"
   , pretty = "cpu-usage"
   , uom = UOM Base CPU `Times` UOM Nano Second
   , group  = CPUGroup
   }
 
-diskReads = Resource
+diskReads = Metric
   { deserialise = "diskio/reads"
   , pretty = "diskio-reads"
   , uom = UOM Base Byte
   , group  = DiskReadGroup
   }
 
-diskWrites = Resource
+diskWrites = Metric
   { deserialise = "diskio/writes"
   , pretty = "diskio-writes"
   , uom = UOM Base Byte
   , group  = DiskWriteGroup
   }
 
-neutronIn = Resource
+neutronIn = Metric
   { deserialise = "neutron-traffic/incoming"
   , pretty = "neutron-data-rx"
   , uom = UOM Base Byte
   , group  = NeutronInGroup
   }
 
-neutronOut = Resource
+neutronOut = Metric
   { deserialise = "neutron-traffic/outgoing"
   , pretty = "neutron-data-tx"
   , uom = UOM Base Byte
   , group  = NeutronOutGroup
   }
 
-ipv4 = Resource
+ipv4 = Metric
   { deserialise = "ipv4-addresses"
   , pretty = "floating-ip-allocations"
   , uom = UOM Base IPAddress
   , group  = IPFloatingGroup
   }
 
-instanceM1Tiny = Resource
+instanceM1Tiny = Metric
   { deserialise = "instances/m1-tiny"
   , pretty = "instance-tiny-allocation"
   , uom = UOM Base Instance `Times` UOM Nano Second
   , group  = InstanceGroup
   }
 
-instanceM1Small = Resource
+instanceM1Small = Metric
   { deserialise = "instances/m1-small"
   , pretty = "instance-small-allocation"
   , uom = UOM Base Instance `Times` UOM Nano Second
   , group  = InstanceGroup
   }
 
-instanceM1Medium = Resource
+instanceM1Medium = Metric
   { deserialise = "instances/m1-medium"
   , pretty = "instance-medium-allocation"
   , uom = UOM Base Instance `Times` UOM Nano Second
   , group  = InstanceGroup
   }
 
-instanceM1Large = Resource
+instanceM1Large = Metric
   { deserialise = "instances/m1-large"
   , pretty = "instance-large-allocation"
   , uom = UOM Base Instance `Times` UOM Nano Second
   , group  = InstanceGroup
   }
 
-instanceM1XLarge = Resource
+instanceM1XLarge = Metric
   { deserialise = "instances/m1-xlarge"
   , pretty = "instance-xlarge-allocation"
   , uom = UOM Base Instance `Times` UOM Nano Second
   , group  = InstanceGroup
   }
 
-volumes = Resource
+volumes = Metric
   { deserialise = "volumes"
   , pretty = "volume-allocation"
   , uom = UOM Giga Byte `Times` UOM Nano Second
   , group  = VolumeGroup
   }
 
-vcpus = Resource
+vcpus = Metric
   { deserialise  = "vcpus"
   , pretty  = "vcpu-allocation"
   , uom = UOM Base VCPU `Times` UOM Nano Second
   , group = VCPUGroup
   }
 
-memory = Resource
+memory = Metric
   { deserialise  = "memory"
   , pretty  = "memory-allocation"
   , uom = UOM Mega Byte `Times` UOM Nano Second
@@ -257,7 +257,7 @@ memory = Resource
 
 -- (De)-Serialistion -----------------------------------------------------------
 
-serialise :: ResourceGroup -> String
+serialise :: MetricGroup -> String
 serialise IPTxGroup       = "tx"
 serialise IPRxGroup       = "rx"
 serialise CPUGroup        = "cpu"
@@ -275,7 +275,7 @@ serialise SnapshotGroup   = "snapshot.size"
 
 -- show/read
 
-instance Show ResourceGroup where
+instance Show MetricGroup where
     show = serialise
 
 instance Show Prefix where
@@ -297,7 +297,7 @@ instance Show UOM where
   show (u1 `Times` u2)   = concat [show u1, "-", show u2]
   show (UOM prefix base) = show prefix ++ show base
 
-instance Show Resource where
+instance Show Metric where
     show = pretty
 
 -- scotty
@@ -307,7 +307,7 @@ instance Parsable TimeStamp where
 
 -- csv
 
-instance C.ToField Resource where
+instance C.ToField Metric where
   toField = B.pack . serialise . group
 instance C.ToField UOM where
   toField = B.pack . show

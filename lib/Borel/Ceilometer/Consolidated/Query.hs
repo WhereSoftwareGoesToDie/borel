@@ -28,17 +28,17 @@ import           Borel.Ceilometer.Consolidated.Parse
 import           Borel.Ceilometer.Consolidated.Types
 import           Borel.Log
 
-matchPayloadAndResource :: Payload -> Resource -> Bool
-matchPayloadAndResource M1Tiny     = (== instanceM1Tiny)
-matchPayloadAndResource M1Small    = (== instanceM1Small)
-matchPayloadAndResource M1Medium   = (== instanceM1Medium)
-matchPayloadAndResource M1Large    = (== instanceM1Large)
-matchPayloadAndResource M1XLarge   = (== instanceM1XLarge)
-matchPayloadAndResource IPAlloc    = (== ipv4)
-matchPayloadAndResource (Volume _) = (== volumes)
-matchPayloadAndResource (Memory _) = (== memory)
-matchPayloadAndResource (VCpu _)   = (== vcpus)
-matchPayloadAndResource _          = const False
+matchPayloadAndMetric :: Payload -> Metric -> Bool
+matchPayloadAndMetric M1Tiny     = (== instanceM1Tiny)
+matchPayloadAndMetric M1Small    = (== instanceM1Small)
+matchPayloadAndMetric M1Medium   = (== instanceM1Medium)
+matchPayloadAndMetric M1Large    = (== instanceM1Large)
+matchPayloadAndMetric M1XLarge   = (== instanceM1XLarge)
+matchPayloadAndMetric IPAlloc    = (== ipv4)
+matchPayloadAndMetric (Volume _) = (== volumes)
+matchPayloadAndMetric (Memory _) = (== memory)
+matchPayloadAndMetric (VCpu _)   = (== vcpus)
+matchPayloadAndMetric _          = const False
 
 payloadWeight :: Payload -> Word64
 payloadWeight (Volume x) = fromIntegral x
@@ -46,17 +46,17 @@ payloadWeight (Memory x) = fromIntegral x
 payloadWeight (VCpu   x) = fromIntegral x
 payloadWeight _          = 1
 
-summaryToResourceQuery :: (Monad m)
-                       => [Resource]
+summaryToMetricQuery :: (Monad m)
+                       => [Metric]
                        -> Map Payload Word64
-                       -> Query m (Resource, Word64)
-summaryToResourceQuery rs summaryMap = Select $ forM_ rs $ \resource ->
-    let filteredMap = M.filterWithKey (\k _ -> matchPayloadAndResource k resource) summaryMap
+                       -> Query m (Metric, Word64)
+summaryToMetricQuery rs summaryMap = Select $ forM_ rs $ \resource ->
+    let filteredMap = M.filterWithKey (\k _ -> matchPayloadAndMetric k resource) summaryMap
         summedValue = M.foldlWithKey  (\acc k v -> payloadWeight k * v + acc) 0 filteredMap
     in yield (resource, summedValue)
 
 summarisePollster :: (Monad m)
-                  => ResourceGroup
+                  => MetricGroup
                   -> TimeStamp
                   -> TimeStamp
                   -> Query m ConsolidatedPoint
@@ -67,7 +67,7 @@ summarisePollster rGroup (TimeStamp start) (TimeStamp end) (Select points) = sum
 -- |Filters out irrelevant events (failures, etc.) and produces a summary
 --  in the form of a Map from possible payloads and durations
 summariseEvents :: (Monad m)
-                => ResourceGroup
+                => MetricGroup
                 -> TimeStamp
                 -> TimeStamp
                 -> Query m ConsolidatedPoint
@@ -80,12 +80,12 @@ summariseEvents rGroup (TimeStamp start) (TimeStamp end) (Select points) = summa
         | otherwise                    = False
     filterRelevant = P.filter endpointPred
 
-billableEvent :: ResourceGroup -> ConsolidatedPoint -> Bool
+billableEvent :: MetricGroup -> ConsolidatedPoint -> Bool
 billableEvent rGroup EventPoint{..}    = billableVerb rGroup eventVerb
 billableEvent _ PollsterPoint{..} = True
 
 summarise' :: (Monad m)
-           => ResourceGroup
+           => MetricGroup
            -> Maybe ConsolidatedPoint
            -> Map Payload Word64
            -> Producer ConsolidatedPoint m ()
@@ -131,27 +131,27 @@ summarise' rGroup lastEvent acc prod start end = do
 eventQuery :: ( MonadSafe m
               , MonadLogger m
               , ReaderT BorelEnv `In` m )
-           => ResourceGroup -> [Resource]
+           => MetricGroup -> [Metric]
            -> Origin -> Address -> TimeStamp -> TimeStamp
-           -> Query m (Resource, Word64)
+           -> Query m (Metric, Word64)
 eventQuery rGroup rs o a s e =
   logInfoThen (concat ["Running event query for address ", show a]) $ do
     env <- liftT ask
     let resQuery = parseConsolidated rGroup (eventMetrics (_readerURI $ config env) o a)
     summary <- lift $ summariseEvents rGroup s e resQuery
-    summaryToResourceQuery rs summary
+    summaryToMetricQuery rs summary
 
 -- | Runs an aggregation query for this pollster-based resource.
 --   We make the assumption that @r@ is reported by ceilometer pollsters.
 pollsterQuery :: ( MonadSafe m
               , MonadLogger m
               , ReaderT BorelEnv `In` m )
-           => ResourceGroup -> [Resource]
+           => MetricGroup -> [Metric]
            -> Origin -> Address -> TimeStamp -> TimeStamp
-           -> Query m (Resource, Word64)
+           -> Query m (Metric, Word64)
 pollsterQuery rGroup rs o a s e =
   logInfoThen (concat ["Running pollster query for address ", show a]) $ do
     env <- liftT ask
     let resQuery = parseConsolidated rGroup (metrics (_readerURI $ config env) o a s e)
     summary <- lift $ summarisePollster rGroup s e resQuery
-    summaryToResourceQuery rs summary
+    summaryToMetricQuery rs summary

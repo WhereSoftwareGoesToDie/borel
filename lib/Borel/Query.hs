@@ -36,7 +36,7 @@ mkQuery :: ( ReaderT BorelEnv `In` m
          , MonadSafe m
          , MonadLogger m )
       => Origin -> Address -> TimeStamp -> TimeStamp
-      -> [Resource] -> Query m (Resource, Word64)
+      -> [Metric] -> Query m (Metric, Word64)
 mkQuery _   _    _     _    []    = Select $ return ()
 mkQuery org addr start end rs@(r:rs') = do
     let rGroup = group r

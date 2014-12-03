@@ -32,7 +32,7 @@ decodeEndpoint 2 = End
 decodeEndpoint x = error $ "Unsupported event endpoint " ++ show x
 
 -- |0 is reserved for events which should not ever happen
-decodeVerb :: ResourceGroup -> Word8 -> EventVerb
+decodeVerb :: MetricGroup -> Word8 -> EventVerb
 decodeVerb IPFloatingGroup x
     | x == 1    = IPAllocVerb IPAllocCreate
     | x == 2    = IPAllocVerb IPAllocUpdate
@@ -52,7 +52,7 @@ decodeVerb SnapshotGroup x
     | otherwise = error $ "Unsupported snapshot verb " ++ show x
 decodeVerb r _  = error $ concat ["Resource ", show r, " does not support verbs"]
 
-decodeStatus :: ResourceGroup -> Word8 -> EventStatus
+decodeStatus :: MetricGroup -> Word8 -> EventStatus
 decodeStatus IPFloatingGroup x
     | x == 0     = IPAllocStatus IPAllocNoStatus
     | x == 1     = IPAllocStatus IPAllocActive
@@ -76,11 +76,11 @@ decodeStatus SnapshotGroup x
     | otherwise  = error $ "Unsupport snapshot status " ++ show x
 decodeStatus r _ = error $ concat ["Resource ", show r, " does not support statuses"]
 
-decodeEventPayload :: ResourceGroup -> Word32 -> Maybe Payload
+decodeEventPayload :: MetricGroup -> Word32 -> Maybe Payload
 decodeEventPayload InstanceGroup x = decodeEventInstancePayload x
 decodeEventPayload x y = decodePollsterPayload x (fromIntegral y)
 
-decodePollsterPayload :: ResourceGroup -> Word64 -> Maybe Payload
+decodePollsterPayload :: MetricGroup -> Word64 -> Maybe Payload
 decodePollsterPayload InstanceGroup   x = decodePollsterInstancePayload x
 decodePollsterPayload IPFloatingGroup _ = Just IPAlloc
 decodePollsterPayload VolumeGroup     x = Just $ Volume $ fromIntegral x
@@ -108,7 +108,7 @@ decodePollsterInstancePayload x
 siphash :: ByteString -> Word64
 siphash x = let (SipHash h) = hash (SipKey 0 0) x in h
 
-billableVerb :: ResourceGroup -> EventVerb -> Bool
+billableVerb :: MetricGroup -> EventVerb -> Bool
 billableVerb IPFloatingGroup _      = True
 billableVerb VolumeGroup     (VolumeVerb x)
     | x == VolumeCreate = True
@@ -121,7 +121,7 @@ billableVerb _ _ = False
 --  6th   MSByte  represents the endpoint
 --  7th   MSByte  represents the verb
 --  8th   MSByte  represents the resolution
-parseEvent :: ResourceGroup
+parseEvent :: MetricGroup
            -> Word64
            -> Word64
            -> Maybe ConsolidatedPoint
@@ -141,7 +141,7 @@ parseEvent rGroup ts bytes = let (a, b, c, d, e) = gets in do
                  e <- getWord8
                  return (a, b, c, d, e)
 
-parsePollster :: ResourceGroup
+parsePollster :: MetricGroup
               -> Word64
               -> Word64
               -> Maybe ConsolidatedPoint
@@ -150,7 +150,7 @@ parsePollster rGroup ts bytes = case decodePollsterPayload rGroup (fromIntegral 
     Nothing -> Nothing
 
 parseConsolidated :: (MonadLogger m)
-                  => ResourceGroup
+                  => MetricGroup
                   -> Query m SimplePoint
                   -> Query m ConsolidatedPoint
 parseConsolidated rGroup (Select points)

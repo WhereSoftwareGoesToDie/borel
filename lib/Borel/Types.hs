@@ -4,11 +4,10 @@
 --
 module Borel.Types
   ( module Borel.Types.Core
-  , module Borel.Types.Resource
+  , module Borel.Types.Metric
   , module Borel.Server.Types
   ) where
 
 import Borel.Types.Core
-import Borel.Types.Resource
-
+import Borel.Types.Metric
 import Borel.Server.Types

@@ -111,6 +111,8 @@ prefixWeighting Nano = 10^(-9 :: Int)
 prefixWeighting Mebi = 1024^(2 :: Int)
 prefixWeighting Mega = 10^(6 :: Int)
 
+-- | How to interpret simple points for a metric group
+--
 report :: MetricGroup -> ResourceMeasure
 report IPTxGroup       = Delta
 report IPRxGroup       = Delta

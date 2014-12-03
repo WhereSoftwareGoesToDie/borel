@@ -72,7 +72,8 @@ type Quantity = Word64
 newtype Customer = Customer { cid :: Int }
   deriving (Parsable, Eq, Ord, Read)
 
-type ResourceID = ( Text, Maybe Text )
+type ResourceID = ( Text   -- ^ sourcedict key
+                  , Text ) -- ^ sourcedict value that uniquely descibes the resource
 
 data Result = Result
     { resultCustomer   :: Customer
@@ -82,7 +83,7 @@ data Result = Result
     , resultIdentifier :: ResourceID
     } deriving Show
 
-mkResult :: Customer -> Metric -> Quantity -> (Text, Maybe Text) -> Result
+mkResult :: Customer -> Metric -> Quantity -> (Text, Text) -> Result
 mkResult c r = Result c r (uom r)
 
 

@@ -52,15 +52,15 @@ data Domain = forall a. Providing a => Domain a
 --   indexed by the type of resource sources
 class Providing sauce where
   originsOf   :: sauce -> [Origin]       -- ^ Resource providers to origins which track that provider
-  identKey    :: sauce -> Text           -- ^ FIXME: Mystery
-  domainKey   :: sauce -> Text           -- ^ FIXME: Mystery two
+  resourceKey :: sauce -> Text           -- ^ Resource descriptor key
+  metricKey   :: sauce -> Text           -- ^ Metric descriptor key
   domain      :: MetricGroup -> sauce    -- ^ Each logical group of resources should be managed by one domain
 
 -- boilerplate
 
 domainOrigins     (Domain a) = originsOf a
-domainIdentKey    (Domain a) = identKey a
-domainTagKey      (Domain a) = domainKey a
+domainIdentKey    (Domain a) = resourceKey a
+domainTagKey      (Domain a) = metricKey a
 
 
 -- Intermediate types ----------------------------------------------------------

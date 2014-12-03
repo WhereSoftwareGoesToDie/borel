@@ -58,7 +58,7 @@ data MetricGroup
 --
 data ResourceMeasure
   = Cumulative
-  | Gauge
+  | Delta
   | ConsolidatedPollster
   | ConsolidatedEvent
   deriving (Show, Eq, Enum, Ord)
@@ -112,8 +112,8 @@ prefixWeighting Mebi = 1024^(2 :: Int)
 prefixWeighting Mega = 10^(6 :: Int)
 
 report :: MetricGroup -> ResourceMeasure
-report IPTxGroup       = Gauge
-report IPRxGroup       = Gauge
+report IPTxGroup       = Delta
+report IPRxGroup       = Delta
 report InstanceGroup   = ConsolidatedPollster
 report VCPUGroup       = ConsolidatedPollster
 report MemoryGroup     = ConsolidatedPollster
@@ -124,7 +124,7 @@ report NeutronOutGroup = Cumulative
 report CPUGroup        = Cumulative
 report VolumeGroup     = ConsolidatedEvent
 report IPFloatingGroup = ConsolidatedEvent
-report ImageGroup      = Gauge
+report ImageGroup      = ConsolidatedPollster
 report SnapshotGroup   = ConsolidatedEvent
 
 

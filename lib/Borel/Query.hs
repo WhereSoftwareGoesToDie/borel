@@ -45,8 +45,8 @@ mkQuery org addr start end rs@(r:rs') = do
                           , " for resources "       , show $ map deserialise rs
                           ]) $
       case report rGroup of
-          Gauge      -> processNonConsolidated (gaugeQuery org addr start end)
-          Cumulative -> processNonConsolidated (cumulativeQuery org addr start end)
+          Delta                -> processNonConsolidated (gaugeQuery org addr start end)
+          Cumulative           -> processNonConsolidated (cumulativeQuery org addr start end)
           ConsolidatedPollster -> pollsterQuery rGroup rs org addr start end
           ConsolidatedEvent    -> eventQuery rGroup rs org addr start end
     else do

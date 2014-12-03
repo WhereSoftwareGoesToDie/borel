@@ -1,6 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Borel.Ceilometer.Consolidated.Types where
+module Borel.Aggregate.Ceilometer.Consolidated.Types where
 
 import           Data.Word
 

@@ -3,7 +3,7 @@
 {-# LANGUAGE TupleSections     #-}
 {-# LANGUAGE TypeOperators     #-}
 
-module Borel.Ceilometer.Consolidated.Parse where
+module Borel.Aggregate.Ceilometer.Consolidated.Parse where
 
 import           Control.Monad.Logger
 import           Crypto.MAC.SipHash                     (SipHash (..),
@@ -18,7 +18,7 @@ import           Marquise.Types
 import           Vaultaire.Query
 
 import           Borel.Types
-import           Borel.Ceilometer.Consolidated.Types
+import           Borel.Aggregate.Ceilometer.Consolidated.Types
 import           Borel.Log
 
 -- |Reserved byte is treated as raw data

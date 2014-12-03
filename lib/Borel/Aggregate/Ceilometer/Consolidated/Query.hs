@@ -3,7 +3,7 @@
 {-# LANGUAGE TupleSections    #-}
 {-# LANGUAGE TypeOperators    #-}
 
-module Borel.Ceilometer.Consolidated.Query
+module Borel.Aggregate.Ceilometer.Consolidated.Query
   ( eventQuery
   , pollsterQuery
   ) where
@@ -24,8 +24,8 @@ import           Vaultaire.Control.Lift
 import           Vaultaire.Query
 
 import           Borel.Types
-import           Borel.Ceilometer.Consolidated.Parse
-import           Borel.Ceilometer.Consolidated.Types
+import           Borel.Aggregate.Ceilometer.Consolidated.Parse
+import           Borel.Aggregate.Ceilometer.Consolidated.Types
 import           Borel.Log
 
 matchPayloadAndMetric :: Payload -> Metric -> Bool

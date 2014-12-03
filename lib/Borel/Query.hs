@@ -28,7 +28,7 @@ import           Vaultaire.Control.Lift
 -- family
 import           Borel.Types
 import           Borel.Log
-import           Borel.Ceilometer
+import           Borel.Aggregate
 
 -- | Construct a Borel query
 --
@@ -45,8 +45,8 @@ mkQuery org addr start end rs@(r:rs') = do
                           , " for resources "       , show $ map deserialise rs
                           ]) $
       case report rGroup of
-          Delta                -> processNonConsolidated (gaugeQuery org addr start end)
-          Cumulative           -> processNonConsolidated (cumulativeQuery org addr start end)
+          Delta                -> processNonConsolidated (aggregateDelta org addr start end)
+          Cumulative           -> processNonConsolidated (aggregateCumulative org addr start end)
           ConsolidatedPollster -> pollsterQuery rGroup rs org addr start end
           ConsolidatedEvent    -> eventQuery rGroup rs org addr start end
     else do

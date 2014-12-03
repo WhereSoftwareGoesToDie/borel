@@ -17,7 +17,7 @@ library
   default-language:  Haskell2010
 
   exposed-modules:   Borel.Types
-                     Borel.Ceilometer
+                     Borel.Aggregate
                      Borel.Server
                      Borel.Log
                      Borel.Source
@@ -25,12 +25,12 @@ library
 
   other-modules:     Borel.Types.Core
                      Borel.Types.Metric
-                     Borel.Ceilometer.Consolidated
-                     Borel.Ceilometer.Consolidated.Types
-                     Borel.Ceilometer.Consolidated.Query
-                     Borel.Ceilometer.Consolidated.Parse
-                     Borel.Ceilometer.Cumulative
-                     Borel.Ceilometer.Gauge
+                     Borel.Aggregate.Ceilometer.Consolidated
+                     Borel.Aggregate.Ceilometer.Consolidated.Types
+                     Borel.Aggregate.Ceilometer.Consolidated.Query
+                     Borel.Aggregate.Ceilometer.Consolidated.Parse
+                     Borel.Aggregate.Cumulative
+                     Borel.Aggregate.Delta
                      Borel.Server.Types
                      Borel.Server.WAI
                      Borel.Source.HTTP

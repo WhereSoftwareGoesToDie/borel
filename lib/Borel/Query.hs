@@ -24,7 +24,8 @@ import           Pipes.Safe
 
 -- friends
 import           Vaultaire.Types
-import           Vaultaire.Query hiding (metrics)
+import           Vaultaire.Control.Lift
+import           Vaultaire.Query
 
 -- family
 import           Borel.Types
@@ -33,13 +34,14 @@ import           Borel.Aggregate
 
 -- | Construct a Borel aggregation from a source of raw Vaultaire points
 --
-mkQuery :: ( MonadReader BorelEnv m
-           , MonadSafe m
-           , MonadLogger m )
-      => [Metric]
-      -> TimeStamp -> TimeStamp
-      -> Query m SimplePoint
-      -> Query m (Metric, Word64)
+mkQuery
+  :: ( ReaderT BorelEnv `In` m
+     , MonadSafe m
+     , MonadLogger m )
+  => [Metric]
+  -> TimeStamp -> TimeStamp
+  -> Query m SimplePoint
+  -> Query m (Metric, Word64)
 mkQuery metrics start end source =
   maybe (lift (logWarnStr "mkQuery: the requested metrics must be of the same group") >> mzero)
         (\group -> logInfoThen

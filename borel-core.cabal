@@ -12,6 +12,10 @@ tested-with:         GHC == 7.8.3
 stability:           experimental
 build-type:          Simple
 
+flag network-uri
+   description: Get Network.URI from the network-uri package
+   default: True
+
 library
   hs-source-dirs:    lib
   default-language:  Haskell2010
@@ -35,6 +39,10 @@ library
                      Borel.Server.WAI
                      Borel.Source.HTTP
 
+  if flag(network-uri)
+     build-depends: network-uri >= 2.6, network >= 2.6
+  else
+     build-depends: network-uri < 2.6, network < 2.6
   build-depends:     base >=4.7 && <4.8,
                      aeson,
                      binary,
@@ -48,7 +56,6 @@ library
                      marquise >= 3.1.0,
                      monad-logger,
                      mtl,
-                     network < 2.6,
                      pipes,
                      pipes-safe,
                      scotty,
@@ -73,13 +80,16 @@ test-suite           test-query
   type:              exitcode-stdio-1.0
   default-language:  Haskell2010
 
+  if flag(network-uri)
+     build-depends: network-uri >= 2.6, network >= 2.6
+  else
+     build-depends: network-uri < 2.6, network < 2.6
   build-depends:     base >=3 && <5,
                      borel-core,
                      containers,
                      hspec,
                      marquise,
                      monad-logger,
-                     network < 2.6,
                      pipes,
                      pipes-safe,
                      vaultaire-common,

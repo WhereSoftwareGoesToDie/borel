@@ -6,22 +6,23 @@
 module Borel.Aggregate.Ceilometer.Consolidated.Parse where
 
 import           Control.Monad.Logger
-import           Crypto.MAC.SipHash                     (SipHash (..),
-                                                         SipKey (..), hash)
+import           Crypto.MAC.SipHash                            (SipHash (..),
+                                                                SipKey (..),
+                                                                hash)
 import           Data.Binary
 import           Data.Binary.Get
-import           Data.ByteString                        (ByteString)
-import           Data.Map(Map)
-import qualified Data.Map as M
+import           Data.ByteString                               (ByteString)
+import           Data.Map                                      (Map)
+import qualified Data.Map                                      as M
 import           Pipes
-import qualified Pipes.Prelude                          as P
+import qualified Pipes.Prelude                                 as P
 
 import           Marquise.Types
 import           Vaultaire.Query
 
-import           Borel.Types
 import           Borel.Aggregate.Ceilometer.Consolidated.Types
 import           Borel.Log
+import           Borel.Types
 
 -- |Reserved byte is treated as raw data
 decodeReserved :: Word8 -> Word8

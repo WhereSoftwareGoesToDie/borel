@@ -22,7 +22,7 @@ where
 
 import           Control.Lens
 import           Control.Monad.Trans.Reader
-import           Data.Map(Map)
+import           Data.Map                   (Map)
 import           Data.Time.Clock
 import           Data.Time.Clock.POSIX
 import           Data.Word
@@ -67,4 +67,4 @@ runBorel :: Monad m
          -> TimeStamp
          -> Producer x (ReaderT BorelEnv m) ()
          -> Producer x m ()
-runBorel conf flavorMap s e = runReaderP (BorelEnv conf flavorMap s e) 
+runBorel conf flavorMap s e = runReaderP (BorelEnv conf flavorMap s e)

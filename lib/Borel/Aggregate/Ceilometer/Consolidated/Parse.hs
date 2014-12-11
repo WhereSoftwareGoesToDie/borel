@@ -11,6 +11,8 @@ import           Crypto.MAC.SipHash                     (SipHash (..),
 import           Data.Binary
 import           Data.Binary.Get
 import           Data.ByteString                        (ByteString)
+import           Data.Map(Map)
+import qualified Data.Map as M
 import           Pipes
 import qualified Pipes.Prelude                          as P
 
@@ -76,34 +78,20 @@ decodeStatus SnapshotGroup x
     | otherwise  = error $ "Unsupport snapshot status " ++ show x
 decodeStatus r _ = error $ concat ["Resource ", show r, " does not support statuses"]
 
-decodeEventPayload :: MetricGroup -> Word32 -> Maybe Payload
-decodeEventPayload InstanceGroup x = decodeEventInstancePayload x
-decodeEventPayload x y = decodePollsterPayload x (fromIntegral y)
+decodeEventPayload :: FlavorMap -> MetricGroup -> Word32 -> Maybe Payload
+decodeEventPayload fm x y = decodePollsterPayload fm x (fromIntegral y)
 
-decodePollsterPayload :: MetricGroup -> Word64 -> Maybe Payload
-decodePollsterPayload InstanceGroup   x = decodePollsterInstancePayload x
-decodePollsterPayload IPFloatingGroup _ = Just IPAlloc
-decodePollsterPayload VolumeGroup     x = Just $ Volume $ fromIntegral x
-decodePollsterPayload VCPUGroup       x = Just $ VCpu $ fromIntegral x
-decodePollsterPayload MemoryGroup     x = Just $ Memory $ fromIntegral x
-decodePollsterPayload _ _ = Nothing
+decodePollsterPayload :: FlavorMap -> MetricGroup -> Word64 -> Maybe Payload
+decodePollsterPayload fm InstanceGroup   x = decodePollsterInstancePayload fm x
+decodePollsterPayload _  IPFloatingGroup _ = Just IPAlloc
+decodePollsterPayload _  VolumeGroup     x = Just $ Volume $ fromIntegral x
+decodePollsterPayload _  VCPUGroup       x = Just $ VCpu $ fromIntegral x
+decodePollsterPayload _  MemoryGroup     x = Just $ Memory $ fromIntegral x
+decodePollsterPayload _ _ _ = Nothing
 
-decodeEventInstancePayload :: Word32 -> Maybe Payload
-decodeEventInstancePayload 6  = Just M1Tiny
-decodeEventInstancePayload 15 = Just M1Small
-decodeEventInstancePayload 3  = Just M1Medium
-decodeEventInstancePayload 9  = Just M1Large
-decodeEventInstancePayload 12 = Just M1XLarge
-decodeEventInstancePayload _  = Nothing
-
-decodePollsterInstancePayload :: Word64 -> Maybe Payload
-decodePollsterInstancePayload x
-    | x == siphash "1" = Just M1Tiny
-    | x == siphash "2" = Just M1Small
-    | x == siphash "3" = Just M1Medium
-    | x == siphash "4" = Just M1Large
-    | x == siphash "5" = Just M1XLarge
-    | otherwise        = Nothing
+decodePollsterInstancePayload :: FlavorMap -> Word64 -> Maybe Payload
+decodePollsterInstancePayload fm x =
+    fmap ComputeInstance (M.lookup x fm)
 
 siphash :: ByteString -> Word64
 siphash x = let (SipHash h) = hash (SipKey 0 0) x in h
@@ -121,12 +109,13 @@ billableVerb _ _ = False
 --  6th   MSByte  represents the endpoint
 --  7th   MSByte  represents the verb
 --  8th   MSByte  represents the resolution
-parseEvent :: MetricGroup
+parseEvent :: FlavorMap
+           -> MetricGroup
            -> Word64
            -> Word64
            -> Maybe ConsolidatedPoint
-parseEvent rGroup ts bytes = let (a, b, c, d, e) = gets in do
-  payload <- decodeEventPayload rGroup a
+parseEvent fm rGroup ts bytes = let (a, b, c, d, e) = gets in do
+  payload <- decodeEventPayload fm rGroup a
   reserve <- Just $ decodeReserved b
   ep      <- Just $ decodeEndpoint c
   verb    <- Just $ decodeVerb rGroup d
@@ -141,25 +130,27 @@ parseEvent rGroup ts bytes = let (a, b, c, d, e) = gets in do
                  e <- getWord8
                  return (a, b, c, d, e)
 
-parsePollster :: MetricGroup
+parsePollster :: FlavorMap
+              -> MetricGroup
               -> Word64
               -> Word64
               -> Maybe ConsolidatedPoint
-parsePollster rGroup ts bytes = case decodePollsterPayload rGroup (fromIntegral bytes) of
+parsePollster fm rGroup ts bytes = case decodePollsterPayload fm rGroup (fromIntegral bytes) of
     Just p  -> Just $ PollsterPoint p ts
     Nothing -> Nothing
 
 parseConsolidated :: (MonadLogger m)
-                  => MetricGroup
+                  => FlavorMap
+                  -> MetricGroup
                   -> Query m SimplePoint
                   -> Query m ConsolidatedPoint
-parseConsolidated rGroup (Select points)
+parseConsolidated fm rGroup (Select points)
   = let (f, str) = case report rGroup of
                        ConsolidatedEvent    -> (parseEvent, serialise rGroup ++ " event")
                        ConsolidatedPollster -> (parsePollster, serialise rGroup ++ " pollster")
                        _                    -> error $ concat ["Attempted to process non-consolidated resource ", serialise $ rGroup, " as consolidated"]
     in Select $ points >-> P.map (\p@(SimplePoint _ (TimeStamp ts) bytes)
-                               -> (p, f rGroup ts bytes))
+                               -> (p, f fm rGroup ts bytes))
                        >-> yieldOrWarn str
   where yieldOrWarn str = for cat $ \x -> case x of
                         (_, Just y)  -> yield y

@@ -22,8 +22,10 @@ where
 
 import           Control.Lens
 import           Control.Monad.Trans.Reader
+import           Data.Map(Map)
 import           Data.Time.Clock
 import           Data.Time.Clock.POSIX
+import           Data.Word
 import           Network.URI
 import           Pipes
 import           Pipes.Lift
@@ -35,6 +37,7 @@ import           Vaultaire.Types
 -- | Parameters for one Borel query.
 data BorelEnv = BorelEnv
   { _config     :: BackendConfig
+  , _flavorMap  :: Map Word64 String
   , _queryStart :: TimeStamp
   , _queryEnd   :: TimeStamp }
 
@@ -59,8 +62,9 @@ defaultEnd = getCurrentTimeNanoseconds
 
 runBorel :: Monad m
          => BackendConfig
+         -> Map Word64 String
          -> TimeStamp
          -> TimeStamp
          -> Producer x (ReaderT BorelEnv m) ()
          -> Producer x m ()
-runBorel conf s e = runReaderP (BorelEnv conf s e)
+runBorel conf flavorMap s e = runReaderP (BorelEnv conf flavorMap s e) 

@@ -7,7 +7,16 @@
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Borel.Log where
+module Borel.Log
+  ( runLogger
+  , runLoggerP
+  , logInfoThen
+  , logDebugStr
+  , logInfoStr
+  , logErrorStr
+  , logWarnStr
+  , logOtherStr
+  ) where
 
 import           Control.Applicative
 import           Control.Monad.IO.Class
@@ -18,16 +27,16 @@ import           Data.Monoid
 import qualified Data.Text              as T
 import           Pipes
 import           Pipes.Lift
-import qualified Pipes.Prelude          as P
 import           Pipes.Safe
 import           System.IO
 import           System.Log.FastLogger
 
-import           Vaultaire.Control.Lift
 import           Vaultaire.Types
 
 newtype ResourceLogger m a = ResourceLogger (ReaderT LogLevel m a)
-    deriving (Functor, Applicative, Monad, MonadReader LogLevel, MonadTrans, MFunctor)
+    deriving ( Functor, Applicative, Monad
+             , MonadReader LogLevel
+             , MonadTrans, MFunctor)
 
 runLogger :: (Monad m)
           => LogLevel
@@ -93,36 +102,3 @@ logErrorStr   = logErrorN   . T.pack
 
 logOtherStr   :: MonadLogger m => LogLevel -> String -> m ()
 logOtherStr l = logOtherN l . T.pack
-
--- Streaming logging
-
--- | A streaming logger inside pipes. This is a newtype so we can have it anywhere
---   in the stack and use @liftT@
-newtype StreamLog m x = StreamLog (Producer String m x)
-  deriving (Functor, Applicative, Monad, MonadTrans, MonadIO, MonadCatch, MonadThrow, MonadMask, MFunctor, MonadLogger)
-
-instance MonadSafe m => MonadSafe (StreamLog m) where
-  type Base (StreamLog p) = Base p
-  liftBase = lift . liftBase
-  register = lift . register
-  release  = lift . release
-
-runStreamLog :: MonadIO m => StreamLog m () -> m ()
-runStreamLog (StreamLog p) = runEffect (p >-> P.stdoutLn)
-
-runStreamLogP :: MonadIO m => Proxy a' a b' b (StreamLog m) () -> Proxy a' a b' b m ()
-runStreamLogP = runStreamLog . distribute
-
-streamLog :: Monad m => String -> StreamLog m ()
-streamLog = StreamLog . yield
-
-streamLogP :: (StreamLog `In` m) => String -> Proxy a' a b' b m ()
-streamLogP x = liftT $ streamLog x
-
-logYield :: (StreamLog `In` m) => (a -> String) -> a -> Producer' a m ()
-logYield f x = do
-  yield x
-  streamLogP (f x)
-
-logTee :: (Show a, StreamLog `In` m) => Pipe a a m ()
-logTee = P.tee (forever $ await >>= streamLogP . show)

@@ -53,11 +53,10 @@ library
                      containers >=0.5 && <0.6,
                      fast-logger,
                      http-client,
+                     lens,
                      marquise >= 3.1.0,
                      monad-logger,
                      mtl,
-                     network,
-                     network-uri,
                      pipes,
                      pipes-safe,
                      scotty,
@@ -76,3 +75,30 @@ library
                      -fwarn-tabs
 
   ghc-prof-options:  -fprof-auto
+
+test-suite           test-query
+  hs-source-dirs:    tests
+  main-is:           Query.hs
+  type:              exitcode-stdio-1.0
+  default-language:  Haskell2010
+
+  if flag(network-uri)
+     build-depends: network-uri >= 2.6, network >= 2.6
+  else
+     build-depends: network-uri < 2.6, network < 2.6
+  build-depends:     base >=3 && <5,
+                     borel-core,
+                     containers,
+                     hspec,
+                     marquise,
+                     monad-logger,
+                     pipes,
+                     pipes-safe,
+                     vaultaire-common,
+                     vaultaire-query >= 0.4.5
+
+  ghc-options:       -O2
+                     -threaded
+                     -Wall
+                     -Wwarn
+                     -fwarn-tabs

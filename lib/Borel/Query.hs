@@ -14,7 +14,9 @@ module Borel.Query
   ) where
 
 import           Control.Monad.Logger
-import           Control.Monad.Trans.Reader
+import           Control.Monad.Reader
+import           Data.List (nub)
+import           Data.Monoid
 import           Data.Word
 import           Pipes
 import qualified Pipes.Prelude as P
@@ -22,37 +24,40 @@ import           Pipes.Safe
 
 -- friends
 import           Vaultaire.Types
-import           Vaultaire.Query
 import           Vaultaire.Control.Lift
+import           Vaultaire.Query
 
 -- family
 import           Borel.Types
 import           Borel.Log
 import           Borel.Aggregate
 
--- | Construct a Borel query
+-- | Construct a Borel aggregation from a source of raw Vaultaire points
 --
-mkQuery :: ( ReaderT BorelEnv `In` m
-         , MonadSafe m
-         , MonadLogger m )
-      => Origin -> Address -> TimeStamp -> TimeStamp
-      -> [Metric] -> Query m (Metric, Word64)
-mkQuery _   _    _     _    []    = Select $ return ()
-mkQuery org addr start end rs@(r:rs') = do
-    let rGroup = group r
-    if all (\r' -> group r' == rGroup) rs' then
-      logInfoThen (concat [ "Aggregating data from ", show addr
-                          , " for resources "       , show $ map deserialise rs
-                          ]) $
-      case report rGroup of
-          Delta                -> processNonConsolidated (aggregateDelta org addr start end)
-          Cumulative           -> processNonConsolidated (aggregateCumulative org addr start end)
-          ConsolidatedPollster -> pollsterQuery rGroup rs org addr start end
-          ConsolidatedEvent    -> eventQuery rGroup rs org addr start end
-    else do
-      lift $ logWarnStr "query passed resource list with non-matching resourceGroups, returning empty Query)"
-      Select $ return ()
-  where pair (Select points) resource = Select (points >-> P.map (\p -> (resource, p)))
-        processNonConsolidated q = case rs of
+mkQuery
+  :: ( ReaderT BorelEnv `In` m
+     , MonadSafe m
+     , MonadLogger m )
+  => [Metric]
+  -> TimeStamp -> TimeStamp
+  -> Query m SimplePoint
+  -> Query m (Metric, Word64)
+mkQuery metrics start end source =
+  maybe (lift (logWarnStr "mkQuery: the requested metrics must be of the same group") >> mzero)
+        (\group -> logInfoThen
+          ("Aggregating data for resources " <> (show $ map deserialise metrics))
+          $ case report group of
+               Delta                -> processNonConsolidated (aggregateDelta source)
+               Cumulative           -> processNonConsolidated (aggregateCumulative source)
+               ConsolidatedPollster -> aggregateConsolidated PollsterBased group metrics start end source
+               ConsolidatedEvent    -> aggregateConsolidated EventBased    group metrics start end source )
+        (groupOf metrics)
+  where pair (Select vals) metric = Select (vals >-> P.map (metric,))
+        processNonConsolidated q = case metrics of
           [resource] -> pair q resource --Currently all non-consolidated metrics have a 1:1 resource:group relation
-          _          -> Select $ return ()
+          _          -> mzero
+
+groupOf :: [Metric] -> Maybe MetricGroup
+groupOf xs = case nub (map group xs) of
+  x:[] -> Just x
+  _    -> Nothing

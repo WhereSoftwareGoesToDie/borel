@@ -4,29 +4,33 @@
 {-# LANGUAGE TypeOperators    #-}
 
 module Borel.Aggregate.Ceilometer.Consolidated.Query
-  ( eventQuery
-  , pollsterQuery
+  ( aggregateConsolidated
+  , ConsolidatedType(..)
   ) where
 
 import           Control.Monad
 import           Control.Monad.Logger
-import           Control.Monad.Trans.Reader
 import           Data.Binary
-import           Data.Map                               (Map)
-import qualified Data.Map                               as M
+import           Data.Map                                      (Map)
+import qualified Data.Map                                      as M
 import           Pipes
-import qualified Pipes.Prelude                          as P
+import qualified Pipes.Prelude                                 as P
 import           Pipes.Safe
 
 
 import           Marquise.Client
-import           Vaultaire.Control.Lift
 import           Vaultaire.Query
 
-import           Borel.Types
 import           Borel.Aggregate.Ceilometer.Consolidated.Parse
 import           Borel.Aggregate.Ceilometer.Consolidated.Types
 import           Borel.Log
+import           Borel.Types
+
+
+data ConsolidatedType = EventBased | PollsterBased
+
+summarise EventBased    = summariseEvents
+summarise PollsterBased = summarisePollster
 
 matchPayloadAndMetric :: Payload -> Metric -> Bool
 matchPayloadAndMetric M1Tiny     = (== instanceM1Tiny)
@@ -126,32 +130,16 @@ summarise' rGroup lastEvent acc prod start end = do
                         else
                             summarise' rGroup (Just currEvent) acc' prod' start end
 
--- | Runs an aggregation query for this event-based resource.
---   We make the assumption that @r@ is reported by ceilometer events.
-eventQuery :: ( MonadSafe m
-              , MonadLogger m
-              , ReaderT BorelEnv `In` m )
-           => MetricGroup -> [Metric]
-           -> Origin -> Address -> TimeStamp -> TimeStamp
-           -> Query m (Metric, Word64)
-eventQuery rGroup rs o a s e =
-  logInfoThen (concat ["Running event query for address ", show a]) $ do
-    env <- liftT ask
-    let resQuery = parseConsolidated rGroup (eventMetrics (_readerURI $ config env) o a)
-    summary <- lift $ summariseEvents rGroup s e resQuery
-    summaryToMetricQuery rs summary
-
--- | Runs an aggregation query for this pollster-based resource.
---   We make the assumption that @r@ is reported by ceilometer pollsters.
-pollsterQuery :: ( MonadSafe m
-              , MonadLogger m
-              , ReaderT BorelEnv `In` m )
-           => MetricGroup -> [Metric]
-           -> Origin -> Address -> TimeStamp -> TimeStamp
-           -> Query m (Metric, Word64)
-pollsterQuery rGroup rs o a s e =
-  logInfoThen (concat ["Running pollster query for address ", show a]) $ do
-    env <- liftT ask
-    let resQuery = parseConsolidated rGroup (metrics (_readerURI $ config env) o a s e)
-    summary <- lift $ summarisePollster rGroup s e resQuery
-    summaryToMetricQuery rs summary
+aggregateConsolidated
+  :: ( MonadSafe m, MonadLogger m )
+  => ConsolidatedType
+  -> MetricGroup
+  -> [Metric]
+  -> TimeStamp -> TimeStamp
+  -> Query m SimplePoint
+  -> Query m (Metric, Word64)
+aggregateConsolidated contype group ms s e source =
+  logInfoThen "Running consolidated query" $ do
+    let resQuery = parseConsolidated group source
+    summary <- lift $ summarise contype group s e resQuery
+    summaryToMetricQuery ms summary

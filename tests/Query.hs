@@ -1,5 +1,6 @@
 import           Control.Monad.Logger
 import           Data.List            (nub, sort)
+import           Data.Monoid
 import           Network.URI
 import           Pipes
 import           Pipes.Lift
@@ -34,7 +35,7 @@ main = hspec $ do
           = runSafeT
           $ P.toListM
           $ runLoggerP LevelInfo
-          $ runReaderP (BorelEnv conf bang doom) x
+          $ runReaderP (BorelEnv conf mempty bang doom) x
 
         conf = BackendConfig [] nullURI nullURI
 

@@ -22,18 +22,23 @@ module Borel.Types.Metric
   , cpu, diskReads, diskWrites, neutronIn, neutronOut
   , computeInstance, ipv4, volumes, vcpus, memory
     -- * Mappings
-  , report, serialise, prefixWeighting
+  , report, serialise, prefixWeighting, FlavorMap
   ) where
 
 import           Data.Aeson
 import           Data.Aeson.TH
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Csv              as C
+import           Data.Map              (Map)
+import qualified Data.Map              as M
 import           Data.Monoid
+import           Data.Word
 import           Web.Scotty            (Parsable, parseParam, readEither)
 
 import           Vaultaire.Types
 
+-- | A mapping of flavor_id hashes to flavor_names
+type FlavorMap = Map Word64 String
 
 -- | Metric attribute: logical groups
 --
@@ -132,8 +137,8 @@ report SnapshotGroup   = ConsolidatedEvent
 
 --Resources --------------------------------------------------------------------
 
-allMetrics :: [String] -> [Metric]
-allMetrics flavors = map computeInstance flavors <>
+allMetrics :: FlavorMap -> [Metric]
+allMetrics flavors = map computeInstance (M.elems flavors) <>
   [ cpu, diskReads, diskWrites, neutronIn, neutronOut
   , volumes, vcpus, memory ]
 

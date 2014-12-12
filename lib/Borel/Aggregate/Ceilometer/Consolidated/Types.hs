@@ -2,10 +2,7 @@
 
 module Borel.Aggregate.Ceilometer.Consolidated.Types where
 
-import           Data.Map  (Map)
 import           Data.Word
-
-type FlavorMap = Map Word64 String
 
 data Payload = ComputeInstance String
              | IPAlloc

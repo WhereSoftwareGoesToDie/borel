@@ -134,13 +134,12 @@ report IPFloatingGroup = ConsolidatedEvent
 report ImageGroup      = ConsolidatedPollster
 report SnapshotGroup   = ConsolidatedEvent
 
-
 --Resources --------------------------------------------------------------------
 
 allMetrics :: FlavorMap -> [Metric]
 allMetrics flavors = map computeInstance (M.elems flavors) <>
   [ cpu, diskReads, diskWrites, neutronIn, neutronOut
-  , volumes, vcpus, memory ]
+  , volumes, vcpus, memory, image, snapshot ]
 
 ipTx, ipRx :: Metric
 diskReads, diskWrites             :: Metric
@@ -232,6 +231,19 @@ memory = Metric
   , group = MemoryGroup
   }
 
+snapshot = Metric
+  { deserialise = "snapshot"
+  , pretty  = "snapshot"
+  , uom = UOM Giga Byte `Times` UOM Nano Second
+  , group = SnapshotGroup
+  }
+
+image = Metric
+  { deserialise = "image"
+  , pretty = "image"
+  , uom = UOM Base Byte `Times` UOM Nano Second
+  , group = ImageGroup
+  }
 
 -- (De)-Serialistion -----------------------------------------------------------
 

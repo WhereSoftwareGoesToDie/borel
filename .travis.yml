@@ -32,6 +32,8 @@ install:
   - 'cabal-$CABALVER sandbox add-source ../vaultaire-control/'
   -  git clone https://github.com/anchor/chevalier-common.git ../chevalier-common/
   - 'cabal-$CABALVER sandbox add-source ../chevalier-common/'
+  -  git clone https://github.com/anchor/vaultaire-query.git ../vaultaire-query/
+  - 'cabal-$CABALVER sandbox add-source ../vaultaire-query/'
   - 'cabal-$CABALVER install --only-dependencies --enable-tests --enable-benchmarks'
 
 script:

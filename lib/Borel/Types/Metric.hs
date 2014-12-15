@@ -20,20 +20,25 @@ module Borel.Types.Metric
     -- * Pre-defined resources
   , ipTx, ipRx
   , cpu, diskReads, diskWrites, neutronIn, neutronOut
-  , instanceM1Tiny, instanceM1Small, instanceM1Medium, instanceM1Large, instanceM1XLarge
-  , ipv4, volumes, vcpus, memory
+  , computeInstance, ipv4, volumes, vcpus, memory
     -- * Mappings
-  , report, serialise, prefixWeighting
+  , report, serialise, prefixWeighting, FlavorMap
   ) where
 
 import           Data.Aeson
 import           Data.Aeson.TH
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Csv              as C
+import           Data.Map              (Map)
+import qualified Data.Map              as M
+import           Data.Monoid
+import           Data.Word
 import           Web.Scotty            (Parsable, parseParam, readEither)
 
 import           Vaultaire.Types
 
+-- | A mapping of flavor_id hashes to flavor_names
+type FlavorMap = Map Word64 String
 
 -- | Metric attribute: logical groups
 --
@@ -129,20 +134,17 @@ report IPFloatingGroup = ConsolidatedEvent
 report ImageGroup      = ConsolidatedPollster
 report SnapshotGroup   = ConsolidatedEvent
 
-
 --Resources --------------------------------------------------------------------
 
-allMetrics :: [Metric]
-allMetrics =
+allMetrics :: FlavorMap -> [Metric]
+allMetrics flavors = map computeInstance (M.elems flavors) <>
   [ cpu, diskReads, diskWrites, neutronIn, neutronOut
-  , instanceM1Tiny, instanceM1Small, instanceM1Medium, instanceM1Large, instanceM1XLarge
-  , volumes, vcpus, memory ]
+  , volumes, vcpus, memory, image, snapshot ]
 
 ipTx, ipRx :: Metric
 diskReads, diskWrites             :: Metric
 neutronIn, neutronOut             :: Metric
 cpu, vcpus, memory, ipv4, volumes :: Metric
-instanceM1Tiny, instanceM1Small, instanceM1Medium, instanceM1Large, instanceM1XLarge :: Metric
 
 ipTx = Metric
   { deserialise = "ip-data-tx"
@@ -200,37 +202,10 @@ ipv4 = Metric
   , group  = IPFloatingGroup
   }
 
-instanceM1Tiny = Metric
-  { deserialise = "instances/m1-tiny"
-  , pretty = "instance-tiny-allocation"
-  , uom = UOM Base Instance `Times` UOM Nano Second
-  , group  = InstanceGroup
-  }
-
-instanceM1Small = Metric
-  { deserialise = "instances/m1-small"
-  , pretty = "instance-small-allocation"
-  , uom = UOM Base Instance `Times` UOM Nano Second
-  , group  = InstanceGroup
-  }
-
-instanceM1Medium = Metric
-  { deserialise = "instances/m1-medium"
-  , pretty = "instance-medium-allocation"
-  , uom = UOM Base Instance `Times` UOM Nano Second
-  , group  = InstanceGroup
-  }
-
-instanceM1Large = Metric
-  { deserialise = "instances/m1-large"
-  , pretty = "instance-large-allocation"
-  , uom = UOM Base Instance `Times` UOM Nano Second
-  , group  = InstanceGroup
-  }
-
-instanceM1XLarge = Metric
-  { deserialise = "instances/m1-xlarge"
-  , pretty = "instance-xlarge-allocation"
+computeInstance :: String -> Metric
+computeInstance name = Metric
+  { deserialise = "instances/" <> name
+  , pretty = "instance-" <> name <> "-allocation"
   , uom = UOM Base Instance `Times` UOM Nano Second
   , group  = InstanceGroup
   }
@@ -256,6 +231,19 @@ memory = Metric
   , group = MemoryGroup
   }
 
+snapshot = Metric
+  { deserialise = "snapshot"
+  , pretty  = "snapshot"
+  , uom = UOM Giga Byte `Times` UOM Nano Second
+  , group = SnapshotGroup
+  }
+
+image = Metric
+  { deserialise = "image"
+  , pretty = "image"
+  , uom = UOM Base Byte `Times` UOM Nano Second
+  , group = ImageGroup
+  }
 
 -- (De)-Serialistion -----------------------------------------------------------
 

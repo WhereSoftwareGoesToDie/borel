@@ -8,6 +8,6 @@ module Borel.Types
   , module Borel.Server.Types
   ) where
 
-import Borel.Types.Core
-import Borel.Types.Metric
-import Borel.Server.Types
+import           Borel.Server.Types
+import           Borel.Types.Core
+import           Borel.Types.Metric

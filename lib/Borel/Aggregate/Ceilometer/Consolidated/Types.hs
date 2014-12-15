@@ -4,11 +4,7 @@ module Borel.Aggregate.Ceilometer.Consolidated.Types where
 
 import           Data.Word
 
-data Payload = M1Tiny
-             | M1Small
-             | M1Medium
-             | M1Large
-             | M1XLarge
+data Payload = ComputeInstance String
              | IPAlloc
              | Volume Word32
              | Memory Word64

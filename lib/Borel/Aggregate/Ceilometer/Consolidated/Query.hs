@@ -10,6 +10,7 @@ module Borel.Aggregate.Ceilometer.Consolidated.Query
 
 import           Control.Monad
 import           Control.Monad.Logger
+import           Control.Monad.Trans.Reader
 import           Data.Binary
 import           Data.Map                                      (Map)
 import qualified Data.Map                                      as M
@@ -19,6 +20,7 @@ import           Pipes.Safe
 
 
 import           Marquise.Client
+import           Vaultaire.Control.Lift
 import           Vaultaire.Query
 
 import           Borel.Aggregate.Ceilometer.Consolidated.Parse
@@ -32,17 +34,13 @@ data ConsolidatedType = EventBased | PollsterBased
 summarise EventBased    = summariseEvents
 summarise PollsterBased = summarisePollster
 
-matchPayloadAndMetric :: Payload -> Metric -> Bool
-matchPayloadAndMetric M1Tiny     = (== instanceM1Tiny)
-matchPayloadAndMetric M1Small    = (== instanceM1Small)
-matchPayloadAndMetric M1Medium   = (== instanceM1Medium)
-matchPayloadAndMetric M1Large    = (== instanceM1Large)
-matchPayloadAndMetric M1XLarge   = (== instanceM1XLarge)
-matchPayloadAndMetric IPAlloc    = (== ipv4)
-matchPayloadAndMetric (Volume _) = (== volumes)
-matchPayloadAndMetric (Memory _) = (== memory)
-matchPayloadAndMetric (VCpu _)   = (== vcpus)
-matchPayloadAndMetric _          = const False
+matchPayloadAndMetric :: FlavorMap -> Payload -> Metric -> Bool
+matchPayloadAndMetric fm (ComputeInstance name) = (== computeInstance name)
+matchPayloadAndMetric _  IPAlloc                = (== ipv4)
+matchPayloadAndMetric _  (Volume _)             = (== volumes)
+matchPayloadAndMetric _  (Memory _)             = (== memory)
+matchPayloadAndMetric _  (VCpu _)               = (== vcpus)
+matchPayloadAndMetric _  _                      = const False
 
 payloadWeight :: Payload -> Word64
 payloadWeight (Volume x) = fromIntegral x
@@ -51,11 +49,12 @@ payloadWeight (VCpu   x) = fromIntegral x
 payloadWeight _          = 1
 
 summaryToMetricQuery :: (Monad m)
-                       => [Metric]
-                       -> Map Payload Word64
-                       -> Query m (Metric, Word64)
-summaryToMetricQuery rs summaryMap = Select $ forM_ rs $ \resource ->
-    let filteredMap = M.filterWithKey (\k _ -> matchPayloadAndMetric k resource) summaryMap
+                     => FlavorMap
+                     -> [Metric]
+                     -> Map Payload Word64
+                     -> Query m (Metric, Word64)
+summaryToMetricQuery fm rs summaryMap = Select $ forM_ rs $ \resource ->
+    let filteredMap = M.filterWithKey (\k _ -> matchPayloadAndMetric fm k resource) summaryMap
         summedValue = M.foldlWithKey  (\acc k v -> payloadWeight k * v + acc) 0 filteredMap
     in yield (resource, summedValue)
 
@@ -131,15 +130,18 @@ summarise' rGroup lastEvent acc prod start end = do
                             summarise' rGroup (Just currEvent) acc' prod' start end
 
 aggregateConsolidated
-  :: ( MonadSafe m, MonadLogger m )
+  :: ( ReaderT BorelEnv `In` m
+     , MonadSafe m
+     , MonadLogger m )
   => ConsolidatedType
   -> MetricGroup
   -> [Metric]
   -> TimeStamp -> TimeStamp
   -> Query m SimplePoint
   -> Query m (Metric, Word64)
-aggregateConsolidated contype group ms s e source =
+aggregateConsolidated contype group ms s e source = do
+  BorelEnv _ fm _ _ <- liftT ask
   logInfoThen "Running consolidated query" $ do
-    let resQuery = parseConsolidated group source
+    let resQuery = parseConsolidated fm group source
     summary <- lift $ summarise contype group s e resQuery
-    summaryToMetricQuery ms summary
+    summaryToMetricQuery fm ms summary

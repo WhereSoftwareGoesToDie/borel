@@ -138,13 +138,17 @@ report SnapshotGroup   = ConsolidatedEvent
 
 allMetrics :: FlavorMap -> [Metric]
 allMetrics flavors = map computeInstance (M.elems flavors) <>
-  [ cpu, diskReads, diskWrites, neutronIn, neutronOut
-  , volumes, vcpus, memory, image, snapshot ]
+  [ diskReads, diskWrites
+  , neutronIn, neutronOut
+  , cpu, vcpus, memory, ipv4, volumes
+  , snapshot, image
+  ]
 
 ipTx, ipRx :: Metric
 diskReads, diskWrites             :: Metric
 neutronIn, neutronOut             :: Metric
 cpu, vcpus, memory, ipv4, volumes :: Metric
+snapshot, image                   :: Metric
 
 ipTx = Metric
   { deserialise = "ip-data-tx"

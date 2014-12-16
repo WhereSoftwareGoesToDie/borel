@@ -105,19 +105,18 @@ flavorMap = M.fromList [ (siphash "1", "flavor1")
                        ]
 
 -- Instance pollsters
--- Expected 2 seconds of flavor2 + 5 seconds of flavor 2 + 4 seconds of flavor 3 + 2 seconds of flavor 2 + 2 seconds of flavor 2
--- = 11 seconds of flavor 2 + 4 seconds of flavor 3
+-- Expected 2 seconds of flavor2 + 5 seconds of flavor 2 + 4 seconds of flavor 3 + 2 seconds of flavor 2
+-- = 9 seconds of flavor 2 + 4 seconds of flavor 3
 okPollsterPoints   = Select $ each
   [ SimplePoint addr (TimeStamp 0)  (siphash "2")
   , SimplePoint addr (TimeStamp 2)  (siphash "2")
   , SimplePoint addr (TimeStamp 7)  (siphash "3")
   , SimplePoint addr (TimeStamp 11) (siphash "2")
   , SimplePoint addr (TimeStamp 13) (siphash "2")
-  -- Query goes up to t = 15 so extra 2 seconds
   ]
 
 expectedInstanceResult =
     [ (computeInstance "flavor1", 0)
-    , (computeInstance "flavor2", 11)
+    , (computeInstance "flavor2", 9)
     , (computeInstance "flavor3", 4)
     ]

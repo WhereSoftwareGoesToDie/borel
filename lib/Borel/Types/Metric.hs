@@ -202,7 +202,7 @@ neutronOut = Metric
 ipv4 = Metric
   { deserialise = "ipv4-addresses"
   , pretty = "floating-ip-allocations"
-  , uom = UOM Base IPAddress
+  , uom = UOM Base IPAddress `Times` UOM Nano Second
   , group  = IPFloatingGroup
   }
 

@@ -103,7 +103,7 @@ billableVerb VolumeGroup     (VolumeVerb x)
     | x == VolumeCreate = True
     | x == VolumeResize = True
     | x == VolumeDelete = False
-billableVerb _ _ = False
+billableVerb _ _ = True
 
 -- |1st 4 MSBytes represent the payload
 --  5th   MSByte  is reserved

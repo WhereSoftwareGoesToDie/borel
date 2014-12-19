@@ -64,7 +64,7 @@ summarisePollster :: (Monad m)
                   -> TimeStamp
                   -> Query m ConsolidatedPoint
                   -> m (Map Payload Word64)
-summarisePollster rGroup (TimeStamp start) (TimeStamp end) (Select points) = summarise' rGroup Nothing M.empty points start end
+summarisePollster rGroup (TimeStamp start) (TimeStamp end) (Select points) = summarise' rGroup Nothing M.empty points start end False
 
 
 -- |Filters out irrelevant events (failures, etc.) and produces a summary
@@ -75,7 +75,7 @@ summariseEvents :: (Monad m)
                 -> TimeStamp
                 -> Query m ConsolidatedPoint
                 -> m (Map Payload Word64)
-summariseEvents rGroup (TimeStamp start) (TimeStamp end) (Select points) = summarise' rGroup Nothing M.empty (points >-> filterRelevant) start end
+summariseEvents rGroup (TimeStamp start) (TimeStamp end) (Select points) = summarise' rGroup Nothing M.empty (points >-> filterRelevant) start end True
   where
     endpointPred evt
         | eventEndpoint evt == Instant = True
@@ -94,13 +94,14 @@ summarise' :: (Monad m)
            -> Producer ConsolidatedPoint m ()
            -> Word64
            -> Word64
+           -> Bool
            -> m (Map Payload Word64)
-summarise' rGroup lastEvent acc prod start end = do
+summarise' rGroup lastEvent acc prod start end isEvent = do
     either_res <- next prod
     case either_res of
         Left _ -> case lastEvent of
             Nothing -> return M.empty
-            Just evt -> do
+            Just evt -> if isEvent then do
                 let delta = end - extractTime evt
                 let acc' = if not (billableEvent rGroup evt) || delta <= 0
                     then
@@ -108,16 +109,17 @@ summarise' rGroup lastEvent acc prod start end = do
                     else
                         M.insertWith (+) (extractPayload evt) delta acc
                 return acc'
+                else return acc
         Right (currEvent, prod') ->
             case lastEvent of
-                Nothing  -> summarise' rGroup (Just currEvent) acc prod' start end
+                Nothing  -> summarise' rGroup (Just currEvent) acc prod' start end isEvent
                 Just lastEvent' ->
                     if extractTime lastEvent' > end
                     then
                         return acc
                     else if extractTime currEvent < start
                     then
-                        summarise' rGroup (Just currEvent) acc prod' start end
+                        summarise' rGroup (Just currEvent) acc prod' start end isEvent
                     else do
                         let start' = max start (extractTime lastEvent')
                         let end'   = min end (extractTime currEvent)
@@ -127,7 +129,7 @@ summarise' rGroup lastEvent acc prod start end = do
                         then
                             return acc
                         else
-                            summarise' rGroup (Just currEvent) acc' prod' start end
+                            summarise' rGroup (Just currEvent) acc' prod' start end isEvent
 
 aggregateConsolidated
   :: ( ReaderT BorelEnv `In` m

@@ -11,6 +11,7 @@ import           Crypto.MAC.SipHash                            (SipHash (..),
                                                                 hash)
 import           Data.Binary
 import           Data.Binary.Get
+import           Data.Bits
 import           Data.ByteString                               (ByteString)
 import           Data.Map                                      (Map)
 import qualified Data.Map                                      as M
@@ -96,6 +97,9 @@ decodePollsterInstancePayload fm x =
 
 siphash :: ByteString -> Word64
 siphash x = let (SipHash h) = hash (SipKey 0 0) x in h
+
+siphash32 :: ByteString -> Word64
+siphash32 = (`shift` (-32)) . siphash
 
 billableVerb :: MetricGroup -> EventVerb -> Bool
 billableVerb IPFloatingGroup _      = True

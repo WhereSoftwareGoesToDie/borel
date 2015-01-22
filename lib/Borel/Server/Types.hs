@@ -37,7 +37,7 @@ import           Vaultaire.Types
 -- | Parameters for one Borel query.
 data BorelEnv = BorelEnv
   { _config     :: BackendConfig
-  , _flavorMap  :: Map Word64 String
+  , _flavorMap  :: Map Word32 String
   , _queryStart :: TimeStamp
   , _queryEnd   :: TimeStamp }
 
@@ -62,7 +62,7 @@ defaultEnd = getCurrentTimeNanoseconds
 
 runBorel :: Monad m
          => BackendConfig
-         -> Map Word64 String
+         -> Map Word32 String
          -> TimeStamp
          -> TimeStamp
          -> Producer x (ReaderT BorelEnv m) ()

@@ -38,7 +38,7 @@ import           Web.Scotty            (Parsable, parseParam, readEither)
 import           Vaultaire.Types
 
 -- | A mapping of flavor_id hashes to flavor_names
-type FlavorMap = Map Word64 String
+type FlavorMap = Map Word32 String
 
 -- | Metric attribute: logical groups
 --

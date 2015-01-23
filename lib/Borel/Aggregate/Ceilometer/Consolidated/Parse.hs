@@ -86,8 +86,8 @@ decodeStatus InstanceGroup x = InstanceStatus AnyStatus
 decodeStatus r _ = error $ concat ["Resource ", show r, " does not support statuses"]
 
 decodeEventPayload :: FlavorMap -> MetricGroup -> Word32 -> Maybe Payload
-decodeEventPayload fm x y = decodePollsterPayload fm x (fromIntegral y)
 decodeEventPayload fm InstanceGroup y = ComputeInstance <$> M.lookup y fm
+decodeEventPayload fm x y = decodePollsterPayload fm x (fromIntegral y)
 
 decodePollsterPayload :: FlavorMap -> MetricGroup -> Word64 -> Maybe Payload
 decodePollsterPayload _  IPFloatingGroup _ = Just IPAlloc

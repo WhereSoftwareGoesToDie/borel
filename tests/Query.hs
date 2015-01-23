@@ -99,9 +99,9 @@ vPayload2 = 2 + (1 `shift` 8) + (2 `shift` 16) + (30 `shift` 32)
 vPayloadEnd = 4 + (3 `shift` 8) + (2 `shift` 16) + (30 `shift` 32)
 
 flavorMap :: Map Word32 String
-flavorMap = M.fromList [ (siphash "1", "flavor1")
-                       , (siphash "2", "flavor2")
-                       , (siphash "3", "flavor3")
+flavorMap = M.fromList [ (siphash32 "1", "flavor1")
+                       , (siphash32 "2", "flavor2")
+                       , (siphash32 "3", "flavor3")
                        ]
 
 -- Instance pollsters

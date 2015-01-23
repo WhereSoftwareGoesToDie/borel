@@ -36,10 +36,14 @@ extractTime :: ConsolidatedPoint -> Word64
 extractTime EventPoint{..}    = eventTime
 extractTime PollsterPoint{..} = pollsterTime
 
+data InstanceStatus = AnyStatus
+    deriving (Eq, Show)
+
 -- |The status of the resource at the time, resource specific
 data EventStatus = IPAllocStatus IPAllocStatus
                  | VolumeStatus VolumeStatus
                  | SnapshotStatus SnapshotStatus
+                 | InstanceStatus InstanceStatus
     deriving (Eq, Show)
 
 data IPAllocStatus = IPAllocNoStatus

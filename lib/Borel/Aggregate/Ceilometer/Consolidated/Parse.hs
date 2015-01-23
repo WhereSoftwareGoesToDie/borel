@@ -5,6 +5,7 @@
 
 module Borel.Aggregate.Ceilometer.Consolidated.Parse where
 
+import           Control.Applicative
 import           Control.Monad.Logger
 import           Crypto.MAC.SipHash                            (SipHash (..),
                                                                 SipKey (..),
@@ -54,6 +55,7 @@ decodeVerb SnapshotGroup x
     | x == 2    = SnapshotVerb SnapshotUpdate
     | x == 3    = SnapshotVerb SnapshotDelete
     | otherwise = error $ "Unsupported snapshot verb " ++ show x
+decodeVerb InstanceGroup _ = Apocalypse
 decodeVerb r _  = error $ concat ["Resource ", show r, " does not support verbs"]
 
 decodeStatus :: MetricGroup -> Word8 -> EventStatus
@@ -78,22 +80,31 @@ decodeStatus SnapshotGroup x
     | x == 2     = SnapshotStatus SnapshotCreating
     | x == 3     = SnapshotStatus SnapshotDeleting
     | otherwise  = error $ "Unsupport snapshot status " ++ show x
+-- AnyStatus is a placeholder until we bring borel's instance pollster
+-- handling up to date.
+decodeStatus InstanceGroup x = InstanceStatus AnyStatus
 decodeStatus r _ = error $ concat ["Resource ", show r, " does not support statuses"]
 
 decodeEventPayload :: FlavorMap -> MetricGroup -> Word32 -> Maybe Payload
+decodeEventPayload fm InstanceGroup y = ComputeInstance <$> M.lookup y fm
 decodeEventPayload fm x y = decodePollsterPayload fm x (fromIntegral y)
 
 decodePollsterPayload :: FlavorMap -> MetricGroup -> Word64 -> Maybe Payload
-decodePollsterPayload fm InstanceGroup   x = decodePollsterInstancePayload fm x
 decodePollsterPayload _  IPFloatingGroup _ = Just IPAlloc
 decodePollsterPayload _  VolumeGroup     x = Just $ Volume $ fromIntegral x
 decodePollsterPayload _  VCPUGroup       x = Just $ VCpu $ fromIntegral x
 decodePollsterPayload _  MemoryGroup     x = Just $ Memory $ fromIntegral x
 decodePollsterPayload _ _ _ = Nothing
 
-decodePollsterInstancePayload :: FlavorMap -> Word64 -> Maybe Payload
-decodePollsterInstancePayload fm x =
-    fmap ComputeInstance (M.lookup x fm)
+decodePollsterInstancePayload ::
+    FlavorMap ->
+    Word64 ->
+    Word64 ->
+    Maybe ConsolidatedPoint
+decodePollsterInstancePayload fm ts p =
+    case parseEvent fm InstanceGroup ts p of
+        Just (EventPoint p' _ _ _ _ ts) -> Just $ PollsterPoint p' ts
+        Nothing -> Nothing
 
 siphash :: ByteString -> Word64
 siphash x = let (SipHash h) = hash (SipKey 0 0) x in h
@@ -140,6 +151,7 @@ parsePollster :: FlavorMap
               -> Word64
               -> Word64
               -> Maybe ConsolidatedPoint
+parsePollster fm InstanceGroup ts bytes = decodePollsterInstancePayload fm ts bytes
 parsePollster fm rGroup ts bytes = case decodePollsterPayload fm rGroup (fromIntegral bytes) of
     Just p  -> Just $ PollsterPoint p ts
     Nothing -> Nothing

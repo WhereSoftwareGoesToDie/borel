@@ -98,11 +98,12 @@ vPayload1 = 2 + (1 `shift` 8) + (2 `shift` 16) + (10 `shift` 32)
 vPayload2 = 2 + (1 `shift` 8) + (2 `shift` 16) + (30 `shift` 32)
 vPayloadEnd = 4 + (3 `shift` 8) + (2 `shift` 16) + (30 `shift` 32)
 
-flavorMap :: Map Word64 String
-flavorMap = M.fromList [ (siphash "1", "flavor1")
-                       , (siphash "2", "flavor2")
-                       , (siphash "3", "flavor3")
-                       ]
+flavorMap :: Map Word32 String
+flavorMap = let sh32 = fromIntegral . siphash32 in
+    M.fromList [ (sh32 "1", "flavor1")
+               , (sh32 "2", "flavor2")
+               , (sh32 "3", "flavor3")
+               ]
 
 -- Instance pollsters
 -- Expected 2 seconds of flavor2 + 5 seconds of flavor 2 + 4 seconds of flavor 3 + 2 seconds of flavor 2

@@ -1,6 +1,6 @@
 cabal-version:       >=1.10
 name:                borel-core
-version:             0.13.1.0
+version:             0.13.1.1
 synopsis:            Metering System for OpenStack metrics provided by Vaultaire.
 license:             BSD3
 license-file:        LICENSE

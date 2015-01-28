@@ -113,10 +113,10 @@ resourceMeasures = [Cumulative ..]
 
 prefixWeighting :: Prefix -> Double
 prefixWeighting Base = 1
-prefixWeighting Giga = 10^(9 :: Int)
-prefixWeighting Nano = 10^(-9 :: Int)
-prefixWeighting Mebi = 1024^(2 :: Int)
-prefixWeighting Mega = 10^(6 :: Int)
+prefixWeighting Giga = 10^^(9 :: Int)
+prefixWeighting Nano = 10^^(-9 :: Int)
+prefixWeighting Mebi = 1024^^(2 :: Int)
+prefixWeighting Mega = 10^^(6 :: Int)
 
 baseWeighting :: BaseUOM -> Double
 baseWeighting _ = 1

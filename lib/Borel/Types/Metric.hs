@@ -132,13 +132,13 @@ extractBaseUOMs (a `Times` b) = extractBaseUOMs a <> extractBaseUOMs b
 coercible :: UOM -> UOM -> Bool
 coercible x y = extractBaseUOMs x == extractBaseUOMs y
 
-convert :: UOM -> UOM -> Word64 -> Maybe Word64
+convert :: UOM -> UOM -> Word64 -> (UOM, Word64)
 convert oldUOM newUOM v =
     if coercible oldUOM newUOM then
         let factor = weighting oldUOM / weighting newUOM in
-            Just $ floor $ toRational factor * toRational v
+            (newUOM, floor $ toRational factor * toRational v)
         else
-            Nothing
+            (oldUOM, v)
 
 -- | How to interpret simple points for a metric group
 --

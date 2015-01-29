@@ -16,7 +16,7 @@ module Borel.Types.Core
     ResourceID
     -- * Domain of resources, e.g. OpenStack and SomethingElse (tm)
   , Domain(..)
-  , domainOrigins, domainIdentKey, domainTagKey
+  , domainOrigins, domainIdentKey, domainTagKey, domainIdentKeyPretty
   , Providing(..)
   ) where
 
@@ -38,16 +38,18 @@ data Domain = forall a. Providing a => Domain a
 --   e.g. OpenStack and SomethingElse (tm)
 --   indexed by the type of resource sources
 class Providing sauce where
-  originsOf   :: sauce -> [Origin]       -- ^ Resource providers to origins which track that provider
-  resourceKey :: sauce -> Text           -- ^ Resource descriptor key
-  metricKey   :: sauce -> Text           -- ^ Metric descriptor key
-  domain      :: MetricGroup -> sauce    -- ^ Each logical group of resources should be managed by one domain
+  originsOf         :: sauce -> [Origin]       -- ^ Resource providers to origins which track that provider
+  resourceKey       :: sauce -> Text           -- ^ Resource descriptor key
+  resourceKeyPretty :: sauce -> Text           -- ^ Resource descriptor key used for display
+  metricKey         :: sauce -> Text           -- ^ Metric descriptor key
+  domain            :: MetricGroup -> sauce    -- ^ Each logical group of resources should be managed by one domain
 
 -- boilerplate
 
-domainOrigins     (Domain a) = originsOf a
-domainIdentKey    (Domain a) = resourceKey a
-domainTagKey      (Domain a) = metricKey a
+domainOrigins        (Domain a) = originsOf a
+domainIdentKey       (Domain a) = resourceKey a
+domainIdentKeyPretty (Domain a) = resourceKeyPretty a
+domainTagKey         (Domain a) = metricKey a
 
 
 -- Intermediate types ----------------------------------------------------------

@@ -13,7 +13,7 @@ module Borel.Types.Metric
   ( -- * Metric
     Metric(..)
   , MetricGroup(..), ResourceMeasure(..)
-  , UOM, BaseUOM, Prefix
+  , UOM(..), BaseUOM(..), Prefix(..), convert
     -- * Enumeration
   , resourceGroups, resourceMeasures
   , allMetrics
@@ -32,6 +32,8 @@ import qualified Data.Csv              as C
 import           Data.Map              (Map)
 import qualified Data.Map              as M
 import           Data.Monoid
+import           Data.MultiSet         (MultiSet)
+import qualified Data.MultiSet         as S
 import           Data.Word
 import           Web.Scotty            (Parsable, parseParam, readEither)
 
@@ -111,10 +113,32 @@ resourceMeasures = [Cumulative ..]
 
 prefixWeighting :: Prefix -> Double
 prefixWeighting Base = 1
-prefixWeighting Giga = 10^(9 :: Int)
-prefixWeighting Nano = 10^(-9 :: Int)
-prefixWeighting Mebi = 1024^(2 :: Int)
-prefixWeighting Mega = 10^(6 :: Int)
+prefixWeighting Giga = 10^^(9 :: Int)
+prefixWeighting Nano = 10^^(-9 :: Int)
+prefixWeighting Mebi = 1024^^(2 :: Int)
+prefixWeighting Mega = 10^^(6 :: Int)
+
+baseWeighting :: BaseUOM -> Double
+baseWeighting _ = 1
+
+weighting :: UOM -> Double
+weighting (UOM p b) = prefixWeighting p * baseWeighting b
+weighting (a `Times` b) = weighting a * weighting b
+
+extractBaseUOMs :: UOM -> MultiSet BaseUOM
+extractBaseUOMs (UOM _ b) = S.singleton b
+extractBaseUOMs (a `Times` b) = extractBaseUOMs a <> extractBaseUOMs b
+
+coercible :: UOM -> UOM -> Bool
+coercible x y = extractBaseUOMs x == extractBaseUOMs y
+
+convert :: UOM -> UOM -> Word64 -> Maybe Word64
+convert oldUOM newUOM v =
+    if coercible oldUOM newUOM then
+        let factor = weighting oldUOM / weighting newUOM in
+            Just $ floor $ toRational factor * toRational v
+        else
+            Nothing
 
 -- | How to interpret simple points for a metric group
 --

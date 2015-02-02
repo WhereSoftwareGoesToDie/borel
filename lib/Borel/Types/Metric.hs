@@ -18,7 +18,7 @@ module Borel.Types.Metric
   , resourceGroups, resourceMeasures
   , allMetrics
     -- * Pre-defined resources
-  , ipTx, ipRx
+  , ipTx, ipRx, snapshot
   , cpu, diskReads, diskWrites, neutronIn, neutronOut
   , computeInstance, ipv4, volumes, vcpus, memory
     -- * Mappings

@@ -94,6 +94,8 @@ decodePollsterPayload _  IPFloatingGroup _ = Just IPAlloc
 decodePollsterPayload _  VolumeGroup     x = Just $ Volume $ fromIntegral x
 decodePollsterPayload _  VCPUGroup       x = Just $ VCpu $ fromIntegral x
 decodePollsterPayload _  MemoryGroup     x = Just $ Memory $ fromIntegral x
+decodePollsterPayload _  SnapshotGroup   x = Just $ Snapshot $ fromIntegral x
+decodePollsterPayload _  ImageGroup      x = Just $ Snapshot $ fromIntegral x
 decodePollsterPayload _ _ _ = Nothing
 
 decodePollsterInstancePayload ::

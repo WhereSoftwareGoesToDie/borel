@@ -7,9 +7,10 @@ import           Data.Word
 data Payload = ComputeInstance String
              | IPAlloc
              | Volume Word32
-             | Memory Word64
-             | VCpu   Word64
+             | Memory Word32
+             | VCpu   Word32
              | Snapshot Word32
+             | Image    Word32
   deriving (Ord, Eq, Show)
 
 -- |A decoded SimplePoint sans Address

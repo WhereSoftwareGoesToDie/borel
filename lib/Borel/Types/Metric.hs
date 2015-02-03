@@ -87,12 +87,31 @@ data Prefix
 
 data BaseUOM
   = Second
+  | Hour
   | Byte
   | Instance
   | IPAddress
   | CPU
   | VCPU
   deriving (Eq, Ord)
+
+data ComparisonBase
+  = CTime
+  | CData
+  | CInstance
+  | CIPAddress
+  | CCPU
+  | CVCPU
+  deriving (Eq, Ord)
+
+reduce :: BaseUOM -> ComparisonBase
+reduce Second    = CTime
+reduce Hour      = CTime
+reduce Byte      = CData
+reduce Instance  = CInstance
+reduce IPAddress = CIPAddress
+reduce CPU       = CCPU
+reduce VCPU      = CVCPU
 
 data Metric = Metric
     { deserialise :: String -- ^ what it parses from
@@ -119,18 +138,19 @@ prefixWeighting Mebi = 1024^^(2 :: Int)
 prefixWeighting Mega = 10^^(6 :: Int)
 
 baseWeighting :: BaseUOM -> Double
+baseWeighting Hour = 60 * 60
 baseWeighting _ = 1
 
 weighting :: UOM -> Double
 weighting (UOM p b) = prefixWeighting p * baseWeighting b
 weighting (a `Times` b) = weighting a * weighting b
 
-extractBaseUOMs :: UOM -> MultiSet BaseUOM
-extractBaseUOMs (UOM _ b) = S.singleton b
-extractBaseUOMs (a `Times` b) = extractBaseUOMs a <> extractBaseUOMs b
+extractComparisonBases :: UOM -> MultiSet ComparisonBase
+extractComparisonBases (UOM _ b) = S.singleton $ reduce b
+extractComparisonBases (a `Times` b) = extractComparisonBases a <> extractComparisonBases b
 
 coercible :: UOM -> UOM -> Bool
-coercible x y = extractBaseUOMs x == extractBaseUOMs y
+coercible x y = extractComparisonBases x == extractComparisonBases y
 
 convert :: UOM -> UOM -> Word64 -> Maybe Word64
 convert oldUOM newUOM v =
@@ -305,6 +325,7 @@ instance Show Prefix where
 
 instance Show BaseUOM where
   show Second    = "s"
+  show Hour      = "h"
   show Byte      = "B"
   show Instance  = "instance"
   show IPAddress = "ip-address"

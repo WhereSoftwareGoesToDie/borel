@@ -29,8 +29,7 @@ import           Vaultaire.Query
 
 -- family
 import           Borel.Types
-import           Borel.Log
-import           Borel.Aggregate
+
 
 -- | Construct a Borel aggregation from a source of raw Vaultaire points
 --

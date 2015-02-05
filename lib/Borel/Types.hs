@@ -83,8 +83,7 @@ paramFlavorMap :: Lens' BorelEnv FlavorMap
 paramFlavorMap    = borelConfig . flavorMap
 
 defaultStart :: IO TimeStamp
-defaultStart =   getCurrentTimeNanoseconds
-             >>= return . addTimeStamp ((-7) * posixDayLength)
+defaultStart =  liftM (addTimeStamp ((-7) * posixDayLength)) getCurrentTimeNanoseconds
   where addTimeStamp x a = convertToTimeStamp
                          $ addUTCTime (convertToDiffTime a) (posixSecondsToUTCTime x)
 

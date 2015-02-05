@@ -1,14 +1,12 @@
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE TransformListComp   #-}
-{-# LANGUAGE MonadComprehensions #-}
-{-# LANGUAGE TypeOperators       #-}
-{-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE ConstraintKinds     #-}
-{-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE MultiWayIf #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE MonadComprehensions #-}
+{-# LANGUAGE MultiWayIf          #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE TypeOperators       #-}
 
 -- | Evaluates Borel requests and construct a Borel queries for them.
 --
@@ -16,27 +14,26 @@ module Borel.Query
   ( run
   ) where
 
+import           Control.Applicative
+import           Control.Lens
 import           Control.Monad.Reader
+import qualified Data.Bimap           as BM
+import qualified Data.List            as L
+import           Data.Map             (Map)
+import qualified Data.Map             as M
+import           Data.Maybe
 import           Data.Monoid
+import           Data.Text            (Text)
 import           Data.Word
-import           Data.Map (Map)
-import qualified Data.Map as M
-import qualified Data.Bimap as BM
-import           Pipes hiding (Proxy)
-import qualified Pipes as P
+import           Pipes                hiding (Proxy)
+import qualified Pipes                as P
 import           Pipes.Safe
-import Control.Lens
-import Control.Applicative
-import Data.Maybe
-import Data.Text (Text)
-import qualified Data.List as L
 
 -- friends
-import           Vaultaire.Types
-import           Vaultaire.Query
-import           Ceilometer.Types
 import           Ceilometer.Client
-import qualified Chevalier.Util as C
+import qualified Chevalier.Util       as C
+import           Vaultaire.Query
+import           Vaultaire.Types
 
 -- family
 import           Borel.Types
@@ -44,7 +41,8 @@ import           Borel.Types
 
 type Result = (Metric, Word64)
 
--- | Runs a Borel query with this config and these arguments.
+-- | Leverages Chevalier, Marquise and Ceilometer
+--   to find, fetch, decode and aggregate data for an OpenStack tenancy.
 --
 run :: (MonadSafe m, Applicative m)
     => Config               -- ^ Borel config, e.g. contains Chevalier/Marquise URI.
@@ -55,22 +53,19 @@ run :: (MonadSafe m, Applicative m)
     -> Producer Result m ()
 run conf ms tid s e = runBorel conf ms tid s e query
 
--- | Leverages Chevalier, Marquise and Ceilometer
---   to find, fetch, decode and aggregate data for an OpenStack tenancy.
---
 query :: (Applicative m, MonadSafe m)
       => Producer Result (BorelM m) ()
 query = do
   params <- ask
   P.enumerate
-    $ [ result
-      | (org, addr, sd) <- Select $ chevalier (params ^. paramTID)
-      , result          <- Select $ each' $ go
-                           (params ^. paramMetrics)
-                           (params ^. paramFlavorMap)
-                           (ceilometer params sd)
-                           (marquise   params org addr)
-      ]
+    [ result
+    | (org, addr, sd) <- Select $ chevalier (params ^. paramTID)
+    , result          <- Select $ each' $ go
+                         (params ^. paramMetrics)
+                         (params ^. paramFlavorMap)
+                         (ceilometer params sd)
+                         (marquise   params org addr)
+    ]
   where ceilometer params sd = Env (params ^. paramFlavorMap) sd
                                    (params ^. paramStart)
                                    (params ^. paramEnd)
@@ -87,7 +82,7 @@ go :: (Monad m, Applicative m)
     -> Producer SimplePoint m () -- ^ Raw points
     -> m [Result]
 go metrics fm ceilometer points = case metrics of
-  (m:[]) -> if
+  [m] -> if
     | m == cpu     -> poke (single m) $ decodeAndFold (undefined :: proxy PDCPU)            ceilometer points
     | m == volumes -> poke (single m) $ decodeAndFold (undefined :: proxy PDVolume)         ceilometer points
     | m == vcpus   -> poke (sumMap m) $ decodeAndFold (undefined :: proxy PDInstanceVCPU)   ceilometer points
@@ -108,8 +103,8 @@ go metrics fm ceilometer points = case metrics of
         group ms vs = map (\(metric, flavor) -> (metric,) $ fromMaybe 0 $ M.lookup flavor vs) ms
 
         poke :: (Monad m, Monoid y) => (x -> y) -> m (Maybe x) -> m y
-        poke f = \mx -> mx >>= \case Nothing -> return mempty
-                                     Just x  -> return $ f x
+        poke f mx = mx >>= \case Nothing -> return mempty
+                                 Just x  -> return $ f x
 
         --  Intersect the flavor map and the list of metrics requested. Flatten the result.
         intersect :: [Metric] -> FlavorMap -> [(Metric, Flavor)]
@@ -125,7 +120,7 @@ marquise :: MonadSafe m
          -> Address
          -> Producer SimplePoint m ()
 marquise params origin addr = case params ^. paramMetrics of
-  metric:[] -> if
+  [metric] -> if
     | metric == volumes  -> getAllPoints
     | metric == ipv4     -> getAllPoints
     | metric == snapshot -> getAllPoints
@@ -155,14 +150,14 @@ chevalier tid = do
             (params ^. paramMetrics)
              tid
   P.enumerate
-    $ [ (org, addr, sd)
-      | org        <- Select $ P.each (params ^. paramOrigin)
-      , (addr, sd) <- addressesWith ( params ^. paramChevalierURI) org req
-      ]
+    [ (org, addr, sd)
+    | org        <- Select $ P.each (params ^. paramOrigin)
+    , (addr, sd) <- addressesWith ( params ^. paramChevalierURI) org req
+    ]
 
 chevalierTags :: FlavorMap -> [Metric] -> TenancyID -> [(Text, Text)]
 chevalierTags fm ms tid = case ms of
-  metric:[] -> if
+  [metric] -> if
     | metric == cpu        -> [tagID tid , tagName "cpu"                                  ]
     | metric == volumes    -> [tagID tid , tagName "volume.size"            , tagEvent    ]
     | metric == diskReads  -> [tagID tid , tagName "disk.read.bytes"                      ]
@@ -176,7 +171,7 @@ chevalierTags fm ms tid = case ms of
     | metric == image      -> [tagID tid , tagName "image.size"             , tagPollster ]
     | otherwise            -> []
   _ -> if
-    | all (flip elem (allInstances fm)) ms
+    | all (`elem` allInstances fm) ms
                            -> [tagID tid , tagName "instance_flavor"        , tagPollster ]
     | otherwise            -> []
   where tagID       = ("project_id",)

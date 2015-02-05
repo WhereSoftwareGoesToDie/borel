@@ -102,7 +102,10 @@ summarise' rGroup lastEvent acc prod start end isEvent = do
         Left _ -> case lastEvent of
             Nothing -> return M.empty
             Just evt -> if isEvent then do
-                let delta = end - extractTime evt
+                let delta = if extractTime evt < start then
+                                end - start
+                            else
+                                end - extractTime evt
                 let acc' = if not (billableEvent rGroup evt) || delta <= 0
                     then
                         acc

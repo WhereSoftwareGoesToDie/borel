@@ -4,4 +4,4 @@ module Borel.Server
   ( module Borel.Server.WAI
   ) where
 
-import Borel.Server.WAI
+import           Borel.Server.WAI

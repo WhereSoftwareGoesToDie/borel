@@ -9,14 +9,17 @@
 -- This module defines user-facing types and environment for
 -- Borel requests.
 --
-{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveFunctor              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE TypeFamilies               #-}
 
 module Borel.Types
   ( -- * Environment
-    Config, BorelEnv, BorelM
-  , paramStart, paramEnd, paramFlavorMap, paramMetrics
+    Config, BorelEnv, BorelM, TenancyID
+  , paramStart, paramEnd, paramFlavorMap
+  , paramMetrics, paramTID
   , paramOrigin, paramMarquiseURI, paramChevalierURI
     -- * Running
   , runBorel
@@ -27,22 +30,26 @@ module Borel.Types
   ) where
 
 import           Control.Applicative
-import           Control.Monad.Reader
-import           Pipes
 import           Control.Lens
-import           Data.Set                   (Set)
+import           Control.Monad.Reader
+import           Data.Set              (Set)
+import           Data.Text             (Text)
 import           Data.Time.Clock
 import           Data.Time.Clock.POSIX
 import           Network.URI
+import           Pipes
 import           Pipes.Lift
+import           Pipes.Safe
 
+import           Ceilometer.Types
 import           Marquise.Types
 import           Vaultaire.Types
-import           Ceilometer.Types
 
 import           Borel.Types.Metric
 import           Borel.Types.UOM
 
+
+type TenancyID = Text
 
 -- | Configure Borel globals that persist across many queries.
 --   (can be reloaded).
@@ -58,6 +65,7 @@ makeLenses ''Config
 data BorelEnv = BorelEnv
   { _borelConfig  :: Config
   , _paramMetrics :: [Metric]
+  , _paramTID     :: TenancyID
   , _paramStart   :: TimeStamp
   , _paramEnd     :: TimeStamp
   }
@@ -88,15 +96,24 @@ parseConfig = undefined
 
 
 newtype BorelM m a = BorelM { borelM :: ReaderT BorelEnv m a }
-  deriving ( Functor, Applicative, Monad, MonadTrans
+  deriving ( Functor, Applicative, Monad
+           , MonadTrans, MonadIO
+           , MonadThrow, MonadMask, MonadCatch
            , MonadReader BorelEnv )
+
+instance MonadSafe m => MonadSafe (BorelM m) where
+  type Base (BorelM m) = Base m
+  liftBase = lift . liftBase
+  register = lift . register
+  release  = lift . release
 
 runBorel :: Monad m
          => Config
          -> [Metric]
+         -> TenancyID
          -> TimeStamp
          -> TimeStamp
          -> Producer x (BorelM m) ()
          -> Producer x m ()
-runBorel conf ms s e p = runReaderP (BorelEnv conf ms s e)
-                          $ hoist borelM p
+runBorel conf ms t s e p = runReaderP (BorelEnv conf ms t s e)
+                         $ hoist borelM p

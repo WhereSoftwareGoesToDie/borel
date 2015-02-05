@@ -23,21 +23,23 @@
 module Borel.Types.Metric
   ( -- * Metric
     Metric(..)
-  , allMetrics
-  , cpu, volumes, vcpus
+  , allMetrics, allInstances
+  , cpu, volumes, diskReads, diskWrites, neutronIn, neutronOut
+  , ipv4, vcpus, memory, snapshot, image
   , mkInstance
   ) where
 
 import           Data.Aeson
 import           Data.Aeson.TH
-import qualified Data.Bimap            as BM
+import qualified Data.Bimap       as BM
 import           Data.Monoid
-import           Data.Text (Text)
-import           Web.Scotty            (Parsable, parseParam, readEither)
+import           Data.Text        (Text)
+import           Web.Scotty       (Parsable, parseParam, readEither)
 
-import           Vaultaire.Types
-import           Ceilometer.Types
 import           Borel.Types.UOM
+import           Ceilometer.Types
+import           Vaultaire.Types
+
 
 data Metric = Metric
     { deserialise :: Text -- ^ what it parses from
@@ -62,9 +64,6 @@ mkInstance name = Metric
   , pretty           = "instance-"  <> name <> "-allocation"
   , uom              = UOM Base Instance `Times` nanoSec
   }
-
-instanceExists :: FlavorMap -> Metric -> Bool
-instanceExists fm x = any (==x) $ allInstances fm
 
 cpu                  = Metric
   { deserialise      = "cpu"
@@ -131,6 +130,9 @@ image                = Metric
   , pretty           = "image"
   , uom              = byte `Times` nanoSec
   }
+
+
+
 
 -- scotty
 

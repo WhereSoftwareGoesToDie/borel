@@ -20,10 +20,10 @@ module Borel.Types.UOM
   , convert
   ) where
 
-import           Data.Word
 import           Data.Monoid
-import           Data.MultiSet         (MultiSet)
-import qualified Data.MultiSet         as S
+import           Data.MultiSet (MultiSet)
+import qualified Data.MultiSet as S
+import           Data.Word
 
 
 nanoSec  = UOM Nano Second

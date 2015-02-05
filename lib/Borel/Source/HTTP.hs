@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification  #-}
+{-# LANGUAGE ExistentialQuantification #-}
 
 -- | Borel communicates with numerous data sources, some of which is via HTTP.
 --   This module contains generic utilities to stream from such backends.
@@ -9,8 +9,8 @@ module Borel.Source.HTTP
      ) where
 
 import           Control.Monad
-import           Data.ByteString.Char8      (ByteString)
-import qualified Data.ByteString.Char8      as B
+import           Data.ByteString.Char8 (ByteString)
+import qualified Data.ByteString.Char8 as B
 import           Network.HTTP.Client
 import           Pipes
 import           Pipes.Safe

@@ -13,26 +13,20 @@
 -- | Evaluates Borel requests and construct a Borel queries for them.
 --
 module Borel.Query
-  (
+  ( run
   ) where
 
-import           Control.Monad.Logger
 import           Control.Monad.Reader
-import           Data.List (nub)
 import           Data.Monoid
 import           Data.Word
-import           Data.Set (Set)
-import qualified Data.Set as S
 import           Data.Map (Map)
 import qualified Data.Map as M
 import qualified Data.Bimap as BM
 import           Pipes hiding (Proxy)
-import qualified Pipes.Prelude as P
+import qualified Pipes as P
 import           Pipes.Safe
-import Data.Typeable
 import Control.Lens
 import Control.Applicative
-import Data.Bifunctor
 import Data.Maybe
 import Data.Text (Text)
 import qualified Data.List as L
@@ -42,6 +36,7 @@ import           Vaultaire.Types
 import           Vaultaire.Query
 import           Ceilometer.Types
 import           Ceilometer.Client
+import qualified Chevalier.Util as C
 
 -- family
 import           Borel.Types
@@ -49,29 +44,53 @@ import           Borel.Types
 
 type Result = (Metric, Word64)
 
--- should be something else
-type TenancyID = Word64
+-- | Runs a Borel query with this config and these arguments.
+--
+run :: (MonadSafe m, Applicative m)
+    => Config               -- ^ Borel config, e.g. contains Chevalier/Marquise URI.
+    -> [Metric]             -- ^ Metrics requested
+    -> TenancyID            -- ^ OpenStack tenancy (can lead to multiple metrics)
+    -> TimeStamp            -- ^ Start time
+    -> TimeStamp            -- ^ End time
+    -> Producer Result m ()
+run conf ms tid s e = runBorel conf ms tid s e query
 
-query :: Set TenancyID -> BorelM m [Result]
-query tenancies = do
-   params <- ask
-   let points     = _
-   let ceilometer = Env (params ^. paramFlavorMap)
-                        _
-                        (params ^. paramStart)
-                        (params ^. paramEnd)
-   go (params ^. paramMetrics) (params ^. paramFlavorMap) ceilometer _
+-- | Leverages Chevalier, Marquise and Ceilometer
+--   to find, fetch, decode and aggregate data for an OpenStack tenancy.
+--
+query :: (Applicative m, MonadSafe m)
+      => Producer Result (BorelM m) ()
+query = do
+  params <- ask
+  P.enumerate
+    $ [ result
+      | (org, addr, sd) <- Select $ chevalier (params ^. paramTID)
+      , result          <- Select $ each' $ go
+                           (params ^. paramMetrics)
+                           (params ^. paramFlavorMap)
+                           (ceilometer params sd)
+                           (marquise   params org addr)
+      ]
+  where ceilometer params sd = Env (params ^. paramFlavorMap) sd
+                                   (params ^. paramStart)
+                                   (params ^. paramEnd)
 
+        each' :: Monad m => m [a] -> Producer a m ()
+        each' x = lift x >>= P.each
+
+-- | Use Ceilometer to decode and aggregate a stream of raw data points.
+--
 go :: (Monad m, Applicative m)
-    => [Metric] -> FlavorMap
-    -> Env
-    -> Producer SimplePoint m ()
+    => [Metric]                  -- ^ Requested metrics, this determines how we present the fold result
+    -> FlavorMap                 -- ^ Instance flavor mapping
+    -> Env                       -- ^ Ceilometer arguments
+    -> Producer SimplePoint m () -- ^ Raw points
     -> m [Result]
 go metrics fm ceilometer points = case metrics of
   (m:[]) -> if
     | m == cpu     -> poke (single m) $ decodeAndFold (undefined :: proxy PDCPU)            ceilometer points
     | m == volumes -> poke (single m) $ decodeAndFold (undefined :: proxy PDVolume)         ceilometer points
-    | m == vcpus   -> poke (sum    m) $ decodeAndFold (undefined :: proxy PDInstanceVCPU)   ceilometer points
+    | m == vcpus   -> poke (sumMap m) $ decodeAndFold (undefined :: proxy PDInstanceVCPU)   ceilometer points
     | otherwise    -> return []
   ms@_   -> if
     -- the flavors queried are known in our flavor map config.
@@ -82,8 +101,8 @@ go metrics fm ceilometer points = case metrics of
   where single     :: Metric -> Word64 -> [Result]
         single m v =  [(m, v)]
 
-        sum        :: Metric -> Map PFValue32 Word64 -> [Result]
-        sum m vs   = [(m, M.foldlWithKey (\a k v -> a + (fromIntegral k * v)) 0 vs)]
+        sumMap      :: Metric -> Map PFValue32 Word64 -> [Result]
+        sumMap m vs = [(m, M.foldlWithKey (\a k v -> a + (fromIntegral k * v)) 0 vs)]
 
         group      :: [(Metric, Flavor)] -> Map PFValueText Word64 -> [Result]
         group ms vs = map (\(metric, flavor) -> (metric,) $ fromMaybe 0 $ M.lookup flavor vs) ms
@@ -96,3 +115,71 @@ go metrics fm ceilometer points = case metrics of
         intersect :: [Metric] -> FlavorMap -> [(Metric, Flavor)]
         intersect ms = BM.fold (\k1 _ acc -> maybe acc ((:acc) . (,k1))
                                           $  L.find (== mkInstance k1) ms) []
+
+
+-- | Use Marquise to fetch raw data points.
+--
+marquise :: MonadSafe m
+         => BorelEnv
+         -> Origin
+         -> Address
+         -> Producer SimplePoint m ()
+marquise params origin addr = case params ^. paramMetrics of
+  metric:[] -> if
+    | metric == volumes  -> getAllPoints
+    | metric == ipv4     -> getAllPoints
+    | metric == snapshot -> getAllPoints
+    | otherwise          -> getSomePoints
+  _                      -> getSomePoints
+  where getAllPoints = P.enumerate $ eventMetrics
+                         (params ^. paramMarquiseURI)
+                          origin addr
+                         (params ^. paramStart)
+                         (params ^. paramEnd)
+        getSomePoints = P.enumerate $ getMetrics
+                         (params ^. paramMarquiseURI)
+                          origin addr
+                         (params ^. paramStart)
+                         (params ^. paramEnd)
+
+-- | Use Chevalier to find origin, address, sourcedict that contains data relevant
+--   to this OpenStack tenancy.
+--
+chevalier :: MonadSafe m
+          => TenancyID
+          -> Producer (Origin, Address, SourceDict) (BorelM m) ()
+chevalier tid = do
+  params <- lift ask
+  let req = C.buildRequestFromPairs $ chevalierTags
+            (params ^. paramFlavorMap)
+            (params ^. paramMetrics)
+             tid
+  P.enumerate
+    $ [ (org, addr, sd)
+      | org        <- Select $ P.each (params ^. paramOrigin)
+      , (addr, sd) <- addressesWith ( params ^. paramChevalierURI) org req
+      ]
+
+chevalierTags :: FlavorMap -> [Metric] -> TenancyID -> [(Text, Text)]
+chevalierTags fm ms tid = case ms of
+  metric:[] -> if
+    | metric == cpu        -> [tagID tid , tagName "cpu"                                  ]
+    | metric == volumes    -> [tagID tid , tagName "volume.size"            , tagEvent    ]
+    | metric == diskReads  -> [tagID tid , tagName "disk.read.bytes"                      ]
+    | metric == diskWrites -> [tagID tid , tagName "disk.write.bytes"                     ]
+    | metric == neutronIn  -> [tagID tid , tagName "network.incoming.bytes"               ]
+    | metric == neutronOut -> [tagID tid , tagName "network.outgoing.bytes"               ]
+    | metric == ipv4       -> [tagID tid , tagName "ip.floating"            , tagEvent    ]
+    | metric == vcpus      -> [tagID tid , tagName "instance_vcpus"         , tagPollster ]
+    | metric == memory     -> [tagID tid , tagName "instance_ram"           , tagPollster ]
+    | metric == snapshot   -> [tagID tid , tagName "snapshot.size"          , tagEvent    ]
+    | metric == image      -> [tagID tid , tagName "image.size"             , tagPollster ]
+    | otherwise            -> []
+  _ -> if
+    | all (flip elem (allInstances fm)) ms
+                           -> [tagID tid , tagName "instance_flavor"        , tagPollster ]
+    | otherwise            -> []
+  where tagID       = ("project_id",)
+        tagName     = ("metric_name",)
+        tagEvent    = ("_event", "1")
+        tagPollster = ("_event", "0")

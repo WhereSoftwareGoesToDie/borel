@@ -19,6 +19,7 @@ import           Control.Applicative
 import           Control.Lens
 import           Control.Monad.Reader
 import qualified Data.Bimap           as BM
+import qualified Data.Foldable        as F
 import qualified Data.List            as L
 import           Data.Map             (Map)
 import qualified Data.Map             as M
@@ -103,9 +104,8 @@ go metrics fm ceilometer points = case metrics of
         group      :: [(Metric, Flavor)] -> Map PFValueText Word64 -> [Result]
         group ms vs = map (\(metric, flavor) -> (metric,) $ fromMaybe 0 $ M.lookup flavor vs) ms
 
-        poke :: (Monad m, Monoid y) => (x -> y) -> m (Maybe x) -> m y
-        poke f mx = mx >>= \case Nothing -> return mempty
-                                 Just x  -> return $ f x
+        poke :: (Functor f, Foldable t, Monoid b) => (a -> b) -> f (t a) -> f b
+        poke = fmap . F.foldMap
 
         --  Intersect the flavor map and the list of metrics requested. Flatten the result.
         intersect :: [Metric] -> FlavorMap -> [(Metric, Flavor)]

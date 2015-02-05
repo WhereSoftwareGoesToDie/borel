@@ -15,8 +15,8 @@
 
 module Borel.Types
   ( -- * Environment
-    Config, BorelEnv
-  , paramStart, paramEnd, paramFlavorMap
+    Config, BorelEnv, BorelM
+  , paramStart, paramEnd, paramFlavorMap, paramMetrics
   , paramOrigin, paramMarquiseURI, paramChevalierURI
     -- * Running
   , runBorel
@@ -56,9 +56,10 @@ data Config = Config
 makeLenses ''Config
 
 data BorelEnv = BorelEnv
-  { _borelConfig :: Config
-  , _paramStart  :: TimeStamp
-  , _paramEnd    :: TimeStamp
+  { _borelConfig  :: Config
+  , _paramMetrics :: [Metric]
+  , _paramStart   :: TimeStamp
+  , _paramEnd     :: TimeStamp
   }
 
 makeLenses ''BorelEnv
@@ -92,9 +93,10 @@ newtype BorelM m a = BorelM { borelM :: ReaderT BorelEnv m a }
 
 runBorel :: Monad m
          => Config
+         -> [Metric]
          -> TimeStamp
          -> TimeStamp
          -> Producer x (BorelM m) ()
          -> Producer x m ()
-runBorel conf s e p = runReaderP (BorelEnv conf s e)
+runBorel conf ms s e p = runReaderP (BorelEnv conf ms s e)
                           $ hoist borelM p

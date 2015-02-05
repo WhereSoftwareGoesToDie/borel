@@ -24,6 +24,8 @@ module Borel.Types.Metric
   ( -- * Metric
     Metric(..)
   , allMetrics
+  , cpu, volumes, vcpus
+  , mkInstance
   ) where
 
 import           Data.Aeson
@@ -44,12 +46,15 @@ data Metric = Metric
     } deriving (Eq, Ord, Show)
 
 allMetrics :: FlavorMap -> [Metric]
-allMetrics flavors = map mkInstance (BM.keys flavors) <>
+allMetrics fm = allInstances fm <>
   [ diskReads, diskWrites
   , neutronIn, neutronOut
   , cpu, vcpus, memory, ipv4, volumes
   , snapshot, image
   ]
+
+allInstances :: FlavorMap -> [Metric]
+allInstances flavors = map mkInstance (BM.keys flavors)
 
 mkInstance :: Flavor -> Metric
 mkInstance name = Metric
@@ -57,6 +62,9 @@ mkInstance name = Metric
   , pretty           = "instance-"  <> name <> "-allocation"
   , uom              = UOM Base Instance `Times` nanoSec
   }
+
+instanceExists :: FlavorMap -> Metric -> Bool
+instanceExists fm x = any (==x) $ allInstances fm
 
 cpu                  = Metric
   { deserialise      = "cpu"

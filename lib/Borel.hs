@@ -12,6 +12,7 @@
 --
 module Borel.Query
   ( run
+  , module Borel.Types
   ) where
 
 import           Control.Applicative

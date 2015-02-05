@@ -29,6 +29,7 @@ library
   exposed-modules:   Borel.Query
 
   other-modules:     Borel.Types
+                     Borel.Types.UOM
                      Borel.Types.Metric
 
   if flag(network-uri)

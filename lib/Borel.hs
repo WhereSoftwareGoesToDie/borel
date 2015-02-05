@@ -8,9 +8,7 @@
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeOperators       #-}
 
--- | Evaluates Borel requests and construct a Borel queries for them.
---
-module Borel.Query
+module Borel
   ( run
   , module Borel.Types
   ) where

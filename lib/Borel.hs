@@ -42,8 +42,6 @@ import           Vaultaire.Types
 import           Borel.Types
 
 
-import Debug.Trace
-
 type GroupedMetric = [Metric]
 
 -- | Leverages Chevalier, Marquise and Ceilometer

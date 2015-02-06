@@ -7,9 +7,10 @@
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE TransformListComp #-}
 
 module Borel
-  ( run, Result
+  ( run
   , module Borel.Types
   ) where
 
@@ -40,11 +41,9 @@ import           Vaultaire.Types
 -- family
 import           Borel.Types
 
-import           Debug.Trace
-import qualified Pipes.Prelude        as P
 
+import Debug.Trace
 
-type Result        = (Metric, Word64)
 type GroupedMetric = [Metric]
 
 -- | Leverages Chevalier, Marquise and Ceilometer
@@ -56,11 +55,11 @@ run :: (MonadSafe m, Applicative m)
     -> TenancyID            -- ^ OpenStack tenancy (can lead to multiple metrics)
     -> TimeStamp            -- ^ Start time
     -> TimeStamp            -- ^ End time
-    -> Producer Result m ()
+    -> Producer ResponseItem m ()
 run conf ms tid s e = runBorel conf ms tid s e query
 
 query :: (Applicative m, MonadSafe m)
-      => Producer Result (BorelM m) ()
+      => Producer ResponseItem (BorelS m) ()
 query = do
   params <- ask
   let flavors = params ^. paramFlavorMap
@@ -70,10 +69,10 @@ query = do
               ( params ^. allInstances)
               ( params ^. paramMetrics)
   P.enumerate
-    [ result
+    [ mkItem sd result
     | metrics         <- Select $ P.each grouped
     , (org, addr, sd) <- Select $ chevalier (metrics, params ^. paramTID)
-    , result          <- trace ("using org=" ++ show org ++ " addr=" ++ show addr ++ " sd=" ++ show sd) $ Select $ each' $ go
+    , result          <- Select $ each' $ go
                          flavors metrics
                          (Env flavors sd start end)
                          (marquise params (metrics, org, addr))
@@ -130,13 +129,13 @@ marquise :: MonadSafe m
          => BorelEnv
          -> (GroupedMetric, Origin, Address)
          -> Producer SimplePoint m ()
-marquise params (metrics, origin, addr) = trace "marquise" $ case metrics of
+marquise params (metrics, origin, addr) = case metrics of
   [metric] -> if
     | metric == volumes  -> getAllPoints
     | metric == ipv4     -> getAllPoints
     | metric == snapshot -> getAllPoints
-    | otherwise          -> trace "get some" $ getSomePoints >-> P.tee P.print
-  _                      -> trace "get some" $ getSomePoints >-> P.tee P.print
+    | otherwise          -> getSomePoints
+  _                      -> getSomePoints
   where getAllPoints = P.enumerate $ eventMetrics
                          (params ^. paramMarquiseURI)
                           origin addr
@@ -153,7 +152,7 @@ marquise params (metrics, origin, addr) = trace "marquise" $ case metrics of
 --
 chevalier :: MonadSafe m
           => (GroupedMetric, TenancyID)
-          -> Producer (Origin, Address, SourceDict) (BorelM m) ()
+          -> Producer (Origin, Address, SourceDict) (BorelS m) ()
 chevalier (metrics, tid) = do
   params <- lift ask
   let req = C.buildRequestFromPairs $ chevalierTags

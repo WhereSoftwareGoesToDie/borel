@@ -24,12 +24,11 @@ module Borel.Types
   , paramOrigin, paramMarquiseURI, paramChevalierURI
   , TenancyID
     -- * Running
-  , BorelM
+  , BorelS
   , runBorel
   , defaultStart, defaultEnd
     -- * Re-exports
-  , module Borel.Types.Metric
-  , module Borel.Types.UOM
+  , module X
   ) where
 
 import           Control.Applicative
@@ -51,8 +50,10 @@ import           Ceilometer.Types
 import           Marquise.Types
 import           Vaultaire.Types
 
-import           Borel.Types.Metric
-import           Borel.Types.UOM
+import           Borel.Types.Error     as X
+import           Borel.Types.Metric    as X
+import           Borel.Types.Result    as X
+import           Borel.Types.UOM       as X
 
 
 type TenancyID = Text
@@ -119,14 +120,14 @@ defaultEnd :: IO TimeStamp
 defaultEnd = getCurrentTimeNanoseconds
 
 
-newtype BorelM m a = BorelM { borelM :: ReaderT BorelEnv m a }
+newtype BorelS m a = BorelS { borelM :: ReaderT BorelEnv m a }
   deriving ( Functor, Applicative, Monad
            , MonadTrans, MonadIO
            , MonadThrow, MonadMask, MonadCatch
            , MonadReader BorelEnv )
 
-instance MonadSafe m => MonadSafe (BorelM m) where
-  type Base (BorelM m) = Base m
+instance MonadSafe m => MonadSafe (BorelS m) where
+  type Base (BorelS m) = Base m
   liftBase = lift . liftBase
   register = lift . register
   release  = lift . release
@@ -137,7 +138,7 @@ runBorel :: Monad m
          -> TenancyID
          -> TimeStamp
          -> TimeStamp
-         -> Producer x (BorelM m) ()
+         -> Producer x (BorelS m) ()
          -> Producer x m ()
 runBorel conf ms t s e p = runReaderP (BorelEnv conf ms t s e)
                          $ hoist borelM p

@@ -31,6 +31,8 @@ library
   other-modules:     Borel.Types
                      Borel.Types.UOM
                      Borel.Types.Metric
+                     Borel.Types.Error
+                     Borel.Types.Result
 
   if flag(network-uri)
      build-depends: network-uri >= 2.6, network >= 2.6
@@ -44,6 +46,7 @@ library
                    , bytestring
                    , cassava
                    , containers >=0.5 && <0.6
+                   , errors
                    , fast-logger
                    , http-client
                    , lens
@@ -51,6 +54,7 @@ library
                    , mtl
                    , multiset
                    , pipes
+                   , pipes-aeson
                    , pipes-safe
                    , scotty
                    , siphash

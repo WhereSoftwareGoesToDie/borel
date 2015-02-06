@@ -9,7 +9,7 @@
 {-# LANGUAGE TypeOperators       #-}
 
 module Borel
-  ( run
+  ( run, Result
   , module Borel.Types
   ) where
 
@@ -23,6 +23,8 @@ import           Data.Map             (Map)
 import qualified Data.Map             as M
 import           Data.Maybe
 import           Data.Monoid
+import           Data.Set             (Set)
+import qualified Data.Set             as S
 import           Data.Text            (Text)
 import           Data.Word
 import           Pipes                hiding (Proxy)
@@ -38,15 +40,19 @@ import           Vaultaire.Types
 -- family
 import           Borel.Types
 
+import           Debug.Trace
+import qualified Pipes.Prelude        as P
 
-type Result = (Metric, Word64)
+
+type Result        = (Metric, Word64)
+type GroupedMetric = [Metric]
 
 -- | Leverages Chevalier, Marquise and Ceilometer
 --   to find, fetch, decode and aggregate data for an OpenStack tenancy.
 --
 run :: (MonadSafe m, Applicative m)
     => Config               -- ^ Borel config, e.g. contains Chevalier/Marquise URI.
-    -> [Metric]             -- ^ Metrics requested
+    -> Set Metric           -- ^ Metrics requested
     -> TenancyID            -- ^ OpenStack tenancy (can lead to multiple metrics)
     -> TimeStamp            -- ^ Start time
     -> TimeStamp            -- ^ End time
@@ -57,31 +63,38 @@ query :: (Applicative m, MonadSafe m)
       => Producer Result (BorelM m) ()
 query = do
   params <- ask
+  let flavors = params ^. paramFlavorMap
+      start   = params ^. paramStart
+      end     = params ^. paramEnd
+      grouped = group
+              ( params ^. allInstances)
+              ( params ^. paramMetrics)
   P.enumerate
     [ result
-    | (org, addr, sd) <- Select $ chevalier (params ^. paramTID)
-    , result          <- Select $ each' $ go
-                         (params ^. paramMetrics)
-                         (params ^. paramFlavorMap)
-                         (ceilometer params sd)
-                         (marquise   params org addr)
+    | metrics         <- Select $ P.each grouped
+    , (org, addr, sd) <- Select $ chevalier (metrics, params ^. paramTID)
+    , result          <- trace ("using org=" ++ show org ++ " addr=" ++ show addr ++ " sd=" ++ show sd) $ Select $ each' $ go
+                         flavors metrics
+                         (Env flavors sd start end)
+                         (marquise params (metrics, org, addr))
     ]
-  where ceilometer params sd = Env (params ^. paramFlavorMap) sd
-                                   (params ^. paramStart)
-                                   (params ^. paramEnd)
-
-        each' :: Monad m => m [a] -> Producer a m ()
+  where each' :: Monad m => m [a] -> Producer a m ()
         each' x = lift x >>= P.each
+
+        group :: Set Metric -> Set Metric -> Set GroupedMetric
+        group instances metrics
+          =  let (allfs, nonfs) = _1 %~ S.toList $ S.partition (`S.member` instances) metrics
+             in  S.insert allfs $ S.map pure nonfs
 
 -- | Use Ceilometer to decode and aggregate a stream of raw data points.
 --
 go :: (Monad m, Applicative m)
-    => [Metric]                  -- ^ Requested metrics, this determines how we present the fold result
-    -> FlavorMap                 -- ^ Instance flavor mapping
+    => FlavorMap                 -- ^ Instance flavor mapping
+    -> GroupedMetric             -- ^ Requested metrics, this determines how we present the fold result
     -> Env                       -- ^ Ceilometer arguments
     -> Producer SimplePoint m () -- ^ Raw points
     -> m [Result]
-go metrics fm ceilometer points = case metrics of
+go fm metrics ceilometer points = case metrics of
   [m] -> if
     | m == cpu     -> poke (single m) $ decodeAndFold (undefined :: proxy PDCPU)            ceilometer points
     | m == volumes -> poke (single m) $ decodeAndFold (undefined :: proxy PDVolume)         ceilometer points
@@ -115,16 +128,15 @@ go metrics fm ceilometer points = case metrics of
 --
 marquise :: MonadSafe m
          => BorelEnv
-         -> Origin
-         -> Address
+         -> (GroupedMetric, Origin, Address)
          -> Producer SimplePoint m ()
-marquise params origin addr = case params ^. paramMetrics of
+marquise params (metrics, origin, addr) = trace "marquise" $ case metrics of
   [metric] -> if
     | metric == volumes  -> getAllPoints
     | metric == ipv4     -> getAllPoints
     | metric == snapshot -> getAllPoints
-    | otherwise          -> getSomePoints
-  _                      -> getSomePoints
+    | otherwise          -> trace "get some" $ getSomePoints >-> P.tee P.print
+  _                      -> trace "get some" $ getSomePoints >-> P.tee P.print
   where getAllPoints = P.enumerate $ eventMetrics
                          (params ^. paramMarquiseURI)
                           origin addr
@@ -140,22 +152,21 @@ marquise params origin addr = case params ^. paramMetrics of
 --   to this OpenStack tenancy.
 --
 chevalier :: MonadSafe m
-          => TenancyID
+          => (GroupedMetric, TenancyID)
           -> Producer (Origin, Address, SourceDict) (BorelM m) ()
-chevalier tid = do
+chevalier (metrics, tid) = do
   params <- lift ask
   let req = C.buildRequestFromPairs $ chevalierTags
-            (params ^. paramFlavorMap)
-            (params ^. paramMetrics)
-             tid
+            (params ^. allInstances)
+            (metrics, tid)
   P.enumerate
     [ (org, addr, sd)
     | org        <- Select $ P.each (params ^. paramOrigin)
     , (addr, sd) <- addressesWith ( params ^. paramChevalierURI) org req
     ]
 
-chevalierTags :: FlavorMap -> [Metric] -> TenancyID -> [(Text, Text)]
-chevalierTags fm ms tid = case ms of
+chevalierTags :: Set Metric -> (GroupedMetric, TenancyID) -> [(Text, Text)]
+chevalierTags instances (ms, tid) = case ms of
   [metric] -> if
     | metric == cpu        -> [tagID tid , tagName "cpu"                                  ]
     | metric == volumes    -> [tagID tid , tagName "volume.size"            , tagEvent    ]
@@ -170,7 +181,7 @@ chevalierTags fm ms tid = case ms of
     | metric == image      -> [tagID tid , tagName "image.size"             , tagPollster ]
     | otherwise            -> []
   _ -> if
-    | all (`elem` allInstances fm) ms
+    | all (`S.member` instances) ms
                            -> [tagID tid , tagName "instance_flavor"        , tagPollster ]
     | otherwise            -> []
   where tagID       = ("project_id",)

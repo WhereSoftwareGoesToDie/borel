@@ -23,7 +23,6 @@
 module Borel.Types.Metric
   ( -- * Metric
     Metric(..)
-  , allMetrics, allInstances
   , cpu, volumes, diskReads, diskWrites, neutronIn, neutronOut
   , ipv4, vcpus, memory, snapshot, image
   , mkInstance
@@ -31,7 +30,6 @@ module Borel.Types.Metric
 
 import           Data.Aeson
 import           Data.Aeson.TH
-import qualified Data.Bimap       as BM
 import           Data.Monoid
 import           Data.Text        (Text)
 import           Web.Scotty       (Parsable, parseParam, readEither)
@@ -40,23 +38,13 @@ import           Borel.Types.UOM
 import           Ceilometer.Types
 import           Vaultaire.Types
 
+-- TODO move allMetrics and allInstances into config with the flavormap
 
 data Metric = Metric
     { deserialise :: Text -- ^ what it parses from
     , pretty      :: Text -- ^ what it pretty prints to
     , uom         :: UOM
     } deriving (Eq, Ord, Show)
-
-allMetrics :: FlavorMap -> [Metric]
-allMetrics fm = allInstances fm <>
-  [ diskReads, diskWrites
-  , neutronIn, neutronOut
-  , cpu, vcpus, memory, ipv4, volumes
-  , snapshot, image
-  ]
-
-allInstances :: FlavorMap -> [Metric]
-allInstances flavors = map mkInstance (BM.keys flavors)
 
 mkInstance :: Flavor -> Metric
 mkInstance name = Metric

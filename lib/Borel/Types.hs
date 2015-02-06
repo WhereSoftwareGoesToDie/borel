@@ -17,13 +17,16 @@
 
 module Borel.Types
   ( -- * Environment
-    Config, BorelEnv, BorelM, TenancyID
+    Config(..), mkConfig, allInstances, allMetrics
+  , BorelEnv
   , paramStart, paramEnd, paramFlavorMap
   , paramMetrics, paramTID
   , paramOrigin, paramMarquiseURI, paramChevalierURI
+  , TenancyID
     -- * Running
+  , BorelM
   , runBorel
-  , defaultStart, defaultEnd, parseConfig
+  , defaultStart, defaultEnd
     -- * Re-exports
   , module Borel.Types.Metric
   , module Borel.Types.UOM
@@ -32,7 +35,10 @@ module Borel.Types
 import           Control.Applicative
 import           Control.Lens
 import           Control.Monad.Reader
+import qualified Data.Bimap            as BM
+import           Data.Monoid
 import           Data.Set              (Set)
+import qualified Data.Set              as S
 import           Data.Text             (Text)
 import           Data.Time.Clock
 import           Data.Time.Clock.POSIX
@@ -58,13 +64,29 @@ data Config = Config
   { _origins      :: Set Origin
   , _readerURI    :: URI
   , _chevalierURI :: URI
-  , _flavorMap    :: FlavorMap }
+  , _flavorMap    :: FlavorMap
+  , _instances    :: Set Metric
+  , _metrics      :: Set Metric }
 
 makeLenses ''Config
 
+mkConfig :: Set Origin -> URI -> URI -> FlavorMap -> Config
+mkConfig org marq chev fm
+  = Config org marq chev fm (S.fromList fs) (S.fromList ms)
+  where ms :: [Metric]
+        ms = fs <>
+          [ diskReads, diskWrites
+          , neutronIn, neutronOut
+          , cpu, vcpus, memory, ipv4, volumes
+          , snapshot, image
+          ]
+        fs :: [Metric]
+        fs = map mkInstance (BM.keys fm)
+
+
 data BorelEnv = BorelEnv
   { _borelConfig  :: Config
-  , _paramMetrics :: [Metric]
+  , _paramMetrics :: Set Metric
   , _paramTID     :: TenancyID
   , _paramStart   :: TimeStamp
   , _paramEnd     :: TimeStamp
@@ -80,7 +102,13 @@ paramMarquiseURI  = borelConfig . readerURI
 paramChevalierURI = borelConfig . chevalierURI
 
 paramFlavorMap :: Lens' BorelEnv FlavorMap
-paramFlavorMap    = borelConfig . flavorMap
+paramFlavorMap = borelConfig . flavorMap
+
+allInstances :: Lens' BorelEnv (Set Metric)
+allInstances = borelConfig . instances
+
+allMetrics :: Lens' BorelEnv (Set Metric)
+allMetrics = borelConfig . metrics
 
 defaultStart :: IO TimeStamp
 defaultStart =  liftM (addTimeStamp ((-7) * posixDayLength)) getCurrentTimeNanoseconds
@@ -89,9 +117,6 @@ defaultStart =  liftM (addTimeStamp ((-7) * posixDayLength)) getCurrentTimeNanos
 
 defaultEnd :: IO TimeStamp
 defaultEnd = getCurrentTimeNanoseconds
-
-parseConfig :: FilePath -> IO Config
-parseConfig = undefined
 
 
 newtype BorelM m a = BorelM { borelM :: ReaderT BorelEnv m a }
@@ -108,7 +133,7 @@ instance MonadSafe m => MonadSafe (BorelM m) where
 
 runBorel :: Monad m
          => Config
-         -> [Metric]
+         -> Set Metric
          -> TenancyID
          -> TimeStamp
          -> TimeStamp

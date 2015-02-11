@@ -163,7 +163,7 @@ chevalier (metrics, tid) = do
     ]
 
 chevalierTags :: Set Metric -> (GroupedMetric, TenancyID) -> [(Text, Text)]
-chevalierTags instances (ms, tid) = case ms of
+chevalierTags instances (ms, TenancyID tid) = case ms of
   [metric] -> if
     | metric == cpu        -> [tagID tid , tagName "cpu"                                  ]
     | metric == volumes    -> [tagID tid , tagName "volume.size"            , tagEvent    ]
@@ -181,7 +181,8 @@ chevalierTags instances (ms, tid) = case ms of
     | all (`S.member` instances) ms
                            -> [tagID tid , tagName "instance_flavor"        , tagPollster ]
     | otherwise            -> []
-  where tagID       = ("project_id",)
+  where tagID, tagName :: Text -> (Text, Text)
+        tagID       = ("project_id",)
         tagName     = ("metric_name",)
         tagEvent    = ("_event", "1")
         tagPollster = ("_event", "0")

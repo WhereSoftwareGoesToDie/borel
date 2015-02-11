@@ -11,6 +11,7 @@
 --
 {-# LANGUAGE DeriveFunctor              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeFamilies               #-}
@@ -22,7 +23,7 @@ module Borel.Types
   , paramStart, paramEnd, paramFlavorMap
   , paramMetrics, paramTID
   , paramOrigin, paramMarquiseURI, paramChevalierURI
-  , TenancyID
+  , TenancyID(..)
     -- * Running
   , BorelS
   , runBorel
@@ -32,8 +33,9 @@ module Borel.Types
   ) where
 
 import           Control.Applicative
-import           Control.Lens
+import           Control.Lens          (Lens', makeLenses)
 import           Control.Monad.Reader
+import           Data.Aeson
 import qualified Data.Bimap            as BM
 import           Data.Monoid
 import           Data.Set              (Set)
@@ -56,7 +58,11 @@ import           Borel.Types.Result    as X
 import           Borel.Types.UOM       as X
 
 
-type TenancyID = Text
+newtype TenancyID = TenancyID { _tenancyID :: Text }
+  deriving (Eq, Show)
+
+instance ToJSON TenancyID where
+  toJSON (TenancyID x) = object [ "tenancy-id" .= x ]
 
 -- | Configure Borel globals that persist across many queries.
 --   (can be reloaded).

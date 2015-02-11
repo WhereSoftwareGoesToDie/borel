@@ -38,7 +38,6 @@ import           Borel.Types.UOM
 import           Ceilometer.Types
 import           Vaultaire.Types
 
--- TODO move allMetrics and allInstances into config with the flavormap
 
 data Metric = Metric
     { deserialise :: Text -- ^ what it parses from

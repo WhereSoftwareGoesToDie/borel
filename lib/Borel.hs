@@ -1,4 +1,3 @@
-{-# LANGUAGE ConstraintKinds     #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE MonadComprehensions #-}
@@ -10,8 +9,31 @@
 {-# LANGUAGE TransformListComp #-}
 
 module Borel
-  ( run
-  , module Borel.Types
+  ( -- * Metric
+    Metric(..)
+  , cpu, volumes, diskReads, diskWrites, neutronIn, neutronOut
+  , ipv4, vcpus, memory, snapshot, image
+  , mkInstance
+
+    -- * Unit of measurement
+  , UOM(..), BaseUOM(..), Prefix(..)
+  , nanoSec, byte, megabyte, gigabyte
+  , convert
+
+    -- * Config
+  , Config(..), mkConfig
+  , allInstances, allMetrics
+  , paramConfig, paramFlavorMap, paramOrigins, paramMarquiseURI, paramChevalierURI
+
+    -- * Query arguments
+  , BorelEnv
+  , paramStart, paramEnd, paramMetrics, paramTID
+  , TenancyID
+
+    -- * Running
+  , ResponseItem(..), mkItem
+  , run, runF
+
   ) where
 
 import           Control.Applicative
@@ -34,6 +56,7 @@ import           Pipes.Safe
 
 -- friends
 import           Ceilometer.Client
+import           Ceilometer.Tags
 import qualified Chevalier.Util       as C
 import           Vaultaire.Query
 import           Vaultaire.Types
@@ -43,6 +66,18 @@ import           Borel.Types
 
 
 type GroupedMetric = [Metric]
+
+-- | Metrics that must be queried as a common Ceilometer resource are grouped together,
+--   others are left as-is.
+--
+--   e.g. [instance-1, instance-2,..]
+--
+groupMetrics :: Set Metric        -- ^ All available instances
+             -> Set Metric        -- ^ Metrics to be grouped
+             -> Set GroupedMetric
+groupMetrics instances metrics
+  =  let (allfs, nonfs) = _1 %~ S.toList $ S.partition (`S.member` instances) metrics
+     in  S.insert allfs $ S.map pure nonfs
 
 -- | Leverages Chevalier, Marquise and Ceilometer
 --   to find, fetch, decode and aggregate data for an OpenStack tenancy.
@@ -54,23 +89,34 @@ run :: (MonadSafe m, Applicative m)
     -> TimeStamp            -- ^ Start time
     -> TimeStamp            -- ^ End time
     -> Producer ResponseItem m ()
-run conf ms tid s e = runBorel conf ms tid s e query
+run    conf ms tid s e = runBorel conf ms tid s e (queryF snd)
 
-query :: (Applicative m, MonadSafe m)
-      => Producer ResponseItem (BorelS m) ()
-query = do
+runF :: (MonadSafe m, Applicative m)
+     => ((Metric, ResponseItem) -> a)
+     -> Config               -- ^ Borel config, e.g. contains Chevalier/Marquise URI.
+     -> Set Metric           -- ^ Metrics requested
+     -> TenancyID            -- ^ OpenStack tenancy (can lead to multiple metrics)
+     -> TimeStamp            -- ^ Start time
+     -> TimeStamp            -- ^ End time
+     -> Producer a m ()
+runF f conf ms tid s e = runBorel conf ms tid s e (queryF f)
+
+queryF :: (Applicative m, MonadSafe m)
+       => ((Metric, ResponseItem) -> a)
+       ->  Producer a (BorelS m) ()
+queryF f = do
   params <- ask
-  let flavors = params ^. paramFlavorMap
+  let flavors = params ^. paramConfig . paramFlavorMap
       start   = params ^. paramStart
       end     = params ^. paramEnd
-      grouped = group
-              ( params ^. allInstances)
+      grouped = groupMetrics
+              ( params ^. paramConfig . allInstances)
               ( params ^. paramMetrics)
   P.enumerate
-    [ mkItem sd result
+    [ f (fst result, mkItem sd result)
     | metrics         <- Select $ P.each grouped
     , (org, addr, sd) <- Select $ chevalier (metrics, params ^. paramTID)
-    , result          <- Select $ each' $ go
+    , result          <- Select $ each' $ ceilometer
                          flavors metrics
                          (Env flavors sd start end)
                          (marquise params (metrics, org, addr))
@@ -78,29 +124,25 @@ query = do
   where each' :: Monad m => m [a] -> Producer a m ()
         each' x = lift x >>= P.each
 
-        group :: Set Metric -> Set Metric -> Set GroupedMetric
-        group instances metrics
-          =  let (allfs, nonfs) = _1 %~ S.toList $ S.partition (`S.member` instances) metrics
-             in  S.insert allfs $ S.map pure nonfs
-
 -- | Use Ceilometer to decode and aggregate a stream of raw data points.
 --
-go :: (Monad m, Applicative m)
+ceilometer
+    :: (Monad m, Applicative m)
     => FlavorMap                 -- ^ Instance flavor mapping
     -> GroupedMetric             -- ^ Requested metrics, this determines how we present the fold result
     -> Env                       -- ^ Ceilometer arguments
     -> Producer SimplePoint m () -- ^ Raw points
     -> m [Result]
-go fm metrics ceilometer points = case metrics of
+ceilometer fm metrics cenv points = case metrics of
   [m] -> if
-    | m == cpu     -> poke (single m) $ decodeAndFold (undefined :: proxy PDCPU)            ceilometer points
-    | m == volumes -> poke (single m) $ decodeAndFold (undefined :: proxy PDVolume)         ceilometer points
-    | m == vcpus   -> poke (sumMap m) $ decodeAndFold (undefined :: proxy PDInstanceVCPU)   ceilometer points
+    | m == cpu     -> poke (single m) $ decodeAndFold (undefined :: proxy PDCPU)            cenv points
+    | m == volumes -> poke (single m) $ decodeAndFold (undefined :: proxy PDVolume)         cenv points
+    | m == vcpus   -> poke (sumMap m) $ decodeAndFold (undefined :: proxy PDInstanceVCPU)   cenv points
     | otherwise    -> return []
   ms@_   -> if
     -- the flavors queried are known in our flavor map config.
     | fs <- intersect ms fm, not $ null fs
-                   -> poke (group fs) $ decodeAndFold (undefined :: proxy PDInstanceFlavor) ceilometer points
+                   -> poke (group fs) $ decodeAndFold (undefined :: proxy PDInstanceFlavor) cenv points
     -- we have no idea what they're talking about!
     | otherwise    -> return []
   where single     :: Metric -> Word64 -> [Result]
@@ -135,12 +177,12 @@ marquise params (metrics, origin, addr) = case metrics of
     | otherwise          -> getSomePoints
   _                      -> getSomePoints
   where getAllPoints = P.enumerate $ eventMetrics
-                         (params ^. paramMarquiseURI)
+                         (params ^. paramConfig . paramMarquiseURI)
                           origin addr
                          (params ^. paramStart)
                          (params ^. paramEnd)
         getSomePoints = P.enumerate $ getMetrics
-                         (params ^. paramMarquiseURI)
+                         (params ^. paramConfig . paramMarquiseURI)
                           origin addr
                          (params ^. paramStart)
                          (params ^. paramEnd)
@@ -154,12 +196,12 @@ chevalier :: MonadSafe m
 chevalier (metrics, tid) = do
   params <- lift ask
   let req = C.buildRequestFromPairs $ chevalierTags
-            (params ^. allInstances)
+            (params ^. paramConfig . allInstances)
             (metrics, tid)
   P.enumerate
     [ (org, addr, sd)
-    | org        <- Select $ P.each (params ^. paramOrigin)
-    , (addr, sd) <- addressesWith ( params ^. paramChevalierURI) org req
+    | org        <- Select $ P.each (params ^. paramConfig . paramOrigins)
+    , (addr, sd) <- addressesWith (  params ^. paramConfig . paramChevalierURI) org req
     ]
 
 chevalierTags :: Set Metric -> (GroupedMetric, TenancyID) -> [(Text, Text)]
@@ -181,8 +223,7 @@ chevalierTags instances (ms, TenancyID tid) = case ms of
     | all (`S.member` instances) ms
                            -> [tagID tid , tagName "instance_flavor"        , tagPollster ]
     | otherwise            -> []
-  where tagID, tagName :: Text -> (Text, Text)
-        tagID       = ("project_id",)
-        tagName     = ("metric_name",)
-        tagEvent    = ("_event", "1")
-        tagPollster = ("_event", "0")
+  where tagID       = (keyTenancyID,)
+        tagName     = (keyMetricName,)
+        tagEvent    = (keyEvent, valTrue)
+        tagPollster = (keyEvent, valFalse)

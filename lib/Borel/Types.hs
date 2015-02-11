@@ -17,23 +17,27 @@
 {-# LANGUAGE TypeFamilies               #-}
 
 module Borel.Types
-  ( -- * Environment
-    Config(..), mkConfig, allInstances, allMetrics
+  ( -- * Config
+    Config(..), mkConfig
+  , allInstances, allMetrics
+  , paramConfig, paramFlavorMap, paramOrigins, paramMarquiseURI, paramChevalierURI
+
+    -- * Query arguments
   , BorelEnv
-  , paramStart, paramEnd, paramFlavorMap
-  , paramMetrics, paramTID
-  , paramOrigin, paramMarquiseURI, paramChevalierURI
   , TenancyID(..)
+  , paramStart, paramEnd, paramMetrics, paramTID
+
     -- * Running
   , BorelS
   , runBorel
   , defaultStart, defaultEnd
+
     -- * Re-exports
   , module X
   ) where
 
 import           Control.Applicative
-import           Control.Lens          (Lens', makeLenses)
+import           Control.Lens          (makeLenses)
 import           Control.Monad.Reader
 import           Data.Aeson
 import qualified Data.Bimap            as BM
@@ -52,7 +56,6 @@ import           Ceilometer.Types
 import           Marquise.Types
 import           Vaultaire.Types
 
-import           Borel.Types.Error     as X
 import           Borel.Types.Metric    as X
 import           Borel.Types.Result    as X
 import           Borel.Types.UOM       as X
@@ -68,12 +71,12 @@ instance ToJSON TenancyID where
 --   (can be reloaded).
 --
 data Config = Config
-  { _origins      :: Set Origin
-  , _readerURI    :: URI
-  , _chevalierURI :: URI
-  , _flavorMap    :: FlavorMap
-  , _instances    :: Set Metric
-  , _metrics      :: Set Metric }
+  { _paramOrigins      :: Set Origin
+  , _paramMarquiseURI  :: URI
+  , _paramChevalierURI :: URI
+  , _paramFlavorMap    :: FlavorMap
+  , _allInstances      :: Set Metric
+  , _allMetrics        :: Set Metric }
 
 makeLenses ''Config
 
@@ -92,7 +95,7 @@ mkConfig org marq chev fm
 
 
 data BorelEnv = BorelEnv
-  { _borelConfig  :: Config
+  { _paramConfig  :: Config
   , _paramMetrics :: Set Metric
   , _paramTID     :: TenancyID
   , _paramStart   :: TimeStamp
@@ -100,22 +103,6 @@ data BorelEnv = BorelEnv
   }
 
 makeLenses ''BorelEnv
-
-paramOrigin :: Lens' BorelEnv (Set Origin)
-paramOrigin       = borelConfig . origins
-
-paramMarquiseURI, paramChevalierURI :: Lens' BorelEnv URI
-paramMarquiseURI  = borelConfig . readerURI
-paramChevalierURI = borelConfig . chevalierURI
-
-paramFlavorMap :: Lens' BorelEnv FlavorMap
-paramFlavorMap = borelConfig . flavorMap
-
-allInstances :: Lens' BorelEnv (Set Metric)
-allInstances = borelConfig . instances
-
-allMetrics :: Lens' BorelEnv (Set Metric)
-allMetrics = borelConfig . metrics
 
 defaultStart :: IO TimeStamp
 defaultStart =  liftM (addTimeStamp ((-7) * posixDayLength)) getCurrentTimeNanoseconds

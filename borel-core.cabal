@@ -27,12 +27,12 @@ library
   default-language:  Haskell2010
 
   exposed-modules:   Borel
+                     Borel.Types
 
-  other-modules:     Borel.Types
-                     Borel.Types.UOM
+  other-modules:     Borel.Types.UOM
                      Borel.Types.Metric
-                     Borel.Types.Error
                      Borel.Types.Result
+                     Borel.Error
 
   if flag(network-uri)
      build-depends: network-uri >= 2.6, network >= 2.6

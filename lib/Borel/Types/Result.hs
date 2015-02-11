@@ -9,7 +9,11 @@
 -- /Description/
 -- This module defines the Result type and how it's presented.
 --
-module Borel.Types.Result where
+module Borel.Types.Result
+  ( Result
+  , ResponseItem(..)
+  , mkItem
+  ) where
 
 import           Control.Lens          hiding ((.=))
 import           Data.Aeson            hiding (Result)
@@ -22,11 +26,11 @@ import qualified Pipes.Aeson.Unchecked as PA
 import           Ceilometer.Tags
 import           Vaultaire.Types
 
-import           Borel.Types.Error
+import           Borel.Error
 import           Borel.Types.Metric
 import           Borel.Types.UOM
 
-type Result        = (Metric, Word64)
+type Result = (Metric, Word64)
 
 data ResponseItem = ResponseItem
   { _resource         :: Text

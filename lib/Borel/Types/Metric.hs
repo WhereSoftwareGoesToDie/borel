@@ -126,9 +126,4 @@ image                = Metric
 instance Parsable TimeStamp where
   parseParam = readEither
 
--- json
-
-instance ToJSON UOM where
-  toJSON x = toJSON $ show x
-
 $(deriveJSON defaultOptions ''TimeStamp)

@@ -28,7 +28,7 @@ module Borel
     -- * Query arguments
   , BorelEnv
   , paramStart, paramEnd, paramMetrics, paramTID
-  , TenancyID
+  , TenancyID(..)
 
     -- * Running
   , ResponseItem(..), mkItem

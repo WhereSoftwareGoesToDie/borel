@@ -10,19 +10,34 @@
 --
 
 {-# OPTIONS -fno-warn-missing-signatures #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 module Borel.Types.UOM
   ( -- * Unit of measurement
     UOM(..), BaseUOM(..), Prefix(..)
+
     -- * Convenient constructors
   , nanoSec, byte, megabyte, gigabyte
+
     -- * Utilities
   , convert
+  , pUOM, pPrefixUOM, pBaseUOM
   ) where
 
+import           Control.Applicative
+import           Control.Error.Util
+import           Control.Lens         (Prism', preview, prism', re, review,
+                                       (^.), (^?))
+import           Control.Monad
+import           Data.Aeson
+import qualified Data.Attoparsec.Text as AT
 import           Data.Monoid
-import           Data.MultiSet (MultiSet)
-import qualified Data.MultiSet as S
+import           Data.MultiSet        (MultiSet)
+import qualified Data.MultiSet        as S
+import           Data.Text            (Text)
+import qualified Data.Text            as T
 import           Data.Word
 
 
@@ -63,25 +78,88 @@ data ComparisonBase
   | CVCPU
   deriving (Eq, Ord)
 
-instance Show Prefix where
-  show Base = ""
-  show Giga = "G"
-  show Nano = "n"
-  show Mebi = "Mi"
-  show Mega = "M"
+pBaseUOM :: Prism' Text BaseUOM
+pBaseUOM = prism' pretty parse
+  where pretty Second    = "s"
+        pretty Hour      = "h"
+        pretty Byte      = "B"
+        pretty Instance  = "instance"
+        pretty IPAddress = "ip-address"
+        pretty CPU       = "cpu"
+        pretty VCPU      = "vcpu-allocation"
+        parse "s"               = Just Second
+        parse "h"               = Just Hour
+        parse "B"               = Just Byte
+        parse "instance"        = Just Instance
+        parse "ip-address"      = Just IPAddress
+        parse "cpu"             = Just CPU
+        parse "vcpu-allocation" = Just VCPU
+        parse _                 = Nothing
+
+pPrefixUOM :: Prism' Text Prefix
+pPrefixUOM = prism' pretty parse
+  where pretty Base = ""
+        pretty Giga = "G"
+        pretty Nano = "n"
+        pretty Mebi = "Mi"
+        pretty Mega = "M"
+        parse ""   = Just Base
+        parse "G"  = Just Giga
+        parse "n"  = Just Nano
+        parse "Mi" = Just Mebi
+        parse "M"  = Just Mega
+        parse _    = Nothing
+
+pUOM :: Prism' Text UOM
+pUOM = prism' pretty parse
+  where dash = "-"
+        pretty (u `Times` v) = (u ^. re pUOM) <> dash <> (v ^. re pUOM)
+        pretty (UOM p b)     = (p ^. re pPrefixUOM) <> (b ^. re pBaseUOM)
+
+        -- treat UOM @Times@ as right-associative.
+        parse = hush . AT.parseOnly (parser <* AT.endOfInput)
+        parser = do
+          uoms <- puom `AT.sepBy` AT.string dash
+          case uoms of []     -> mzero
+                       -- construct right-associative UOMs
+                       (u:us) -> return $ foldl Times u us
+        puom = do
+          pre  <- AT.option (Just Base) ppre
+          base <- pbase
+          case (pre, base) of (Just p, Just b)  -> return $ UOM p b
+                              _                 -> mzero
+        ppre   =  (preview pPrefixUOM <$> AT.string "G")
+              <|> (preview pPrefixUOM <$> AT.string "n")
+              <|> (preview pPrefixUOM <$> AT.string "Mi")
+              <|> (preview pPrefixUOM <$> AT.string "M")
+        pbase =   (preview pBaseUOM <$> AT.string "s")
+              <|> (preview pBaseUOM <$> AT.string "h")
+              <|> (preview pBaseUOM <$> AT.string "B")
+              <|> (preview pBaseUOM <$> AT.string "instance")
+              <|> (preview pBaseUOM <$> AT.string "ip-address")
+              <|> (preview pBaseUOM <$> AT.string "cpu")
+              <|> (preview pBaseUOM <$> AT.string "vcpu-allocation")
 
 instance Show BaseUOM where
-  show Second    = "s"
-  show Hour      = "h"
-  show Byte      = "B"
-  show Instance  = "instance"
-  show IPAddress = "ip-address"
-  show CPU       = "cpu"
-  show VCPU      = "vcpu-allocation"
+  show = T.unpack . review pBaseUOM
+
+instance Show Prefix where
+  show = T.unpack . review pPrefixUOM
 
 instance Show UOM where
-  show (u1 `Times` u2)   = concat [show u1, "-", show u2]
-  show (UOM prefix base) = show prefix ++ show base
+  show = T.unpack . review pUOM
+
+instance Read UOM where
+  readsPrec _ (T.pack -> x) = maybe [] (pure . (,"")) $ x ^? pUOM
+
+instance FromJSON UOM where
+  parseJSON (String t) = maybe mzero return $ t ^? pUOM
+
+instance ToJSON UOM where
+  toJSON x = String $ x ^. re pUOM
+
+
+-- the following is copied from old borel code
 
 reduce :: BaseUOM -> ComparisonBase
 reduce Second    = CTime

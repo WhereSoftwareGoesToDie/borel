@@ -17,11 +17,8 @@ module Borel.Types.Result
 
 import           Control.Lens          hiding ((.=))
 import           Data.Aeson            hiding (Result)
-import           Data.ByteString       (ByteString)
 import           Data.Text             (Text)
 import           Data.Word
-import           Pipes
-import qualified Pipes.Aeson.Unchecked as PA
 
 import           Ceilometer.Tags
 import           Vaultaire.Types
@@ -37,21 +34,6 @@ data ResponseItem = ResponseItem
   , _resourceID       :: Text
   , _resourceUOM      :: UOM
   , _resourceQuantity :: Word64 }
-
-class ToJSONStream a where
-  toJSONStream :: Monad m => Producer a m () -> Producer ByteString m ()
-
--- copied from old borel
-instance ToJSONStream ResponseItem where
-  toJSONStream sauce = do
-      yield "[\n"
-      x <- lift $ next sauce
-      case x of Left  _         -> yield "\n]"
-                Right (y, rest) -> PA.encode y >> go rest
-    where go metric = do
-            x <- lift $ next metric
-            case x of Left  _         -> yield "\n]"
-                      Right (y, rest) -> yield ",\n" >> PA.encode y >> go rest
 
 instance ToJSON ResponseItem where
   toJSON (ResponseItem n i u x)

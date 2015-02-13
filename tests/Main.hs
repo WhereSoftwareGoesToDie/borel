@@ -24,5 +24,5 @@ uomTest = do
 uom0       = UOM Base Second
 uomResult0 = "s"
 
-uom1       = UOM Base Instance `Times` UOM Nano Second
-uomResult1 = "instance-ns"
+uom1       = UOM Base Instance `Times` UOM Nano Second  `Times` UOM Giga Byte
+uomResult1 = "instance-ns-GB"

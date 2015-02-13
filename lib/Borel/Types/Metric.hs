@@ -10,14 +10,10 @@
 -- which can correspond to one or many Ceilometer resources.
 --
 
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE StandaloneDeriving         #-}
-{-# LANGUAGE TemplateHaskell            #-}
-{-# LANGUAGE TupleSections              #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections     #-}
 
-{-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
 module Borel.Types.Metric
@@ -28,15 +24,11 @@ module Borel.Types.Metric
   , mkInstance
   ) where
 
-import           Data.Aeson
-import           Data.Aeson.TH
 import           Data.Monoid
 import           Data.Text        (Text)
-import           Web.Scotty       (Parsable, parseParam, readEither)
 
 import           Borel.Types.UOM
 import           Ceilometer.Types
-import           Vaultaire.Types
 
 
 data Metric = Metric
@@ -117,13 +109,3 @@ image                = Metric
   , pretty           = "image"
   , uom              = byte `Times` nanoSec
   }
-
-
-
-
--- scotty
-
-instance Parsable TimeStamp where
-  parseParam = readEither
-
-$(deriveJSON defaultOptions ''TimeStamp)

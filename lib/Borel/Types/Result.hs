@@ -15,6 +15,7 @@ module Borel.Types.Result
   , mkItem
   ) where
 
+import Control.Applicative
 import           Control.Lens          hiding ((.=))
 import           Data.Aeson            hiding (Result)
 import           Data.Text             (Text)
@@ -34,6 +35,15 @@ data ResponseItem = ResponseItem
   , _resourceID       :: Text
   , _resourceUOM      :: UOM
   , _resourceQuantity :: Word64 }
+  deriving (Eq, Show)
+
+instance FromJSON ResponseItem where
+  parseJSON (Object x)
+    =   ResponseItem
+    <$> x .: "resource"
+    <*> x .: "resource-id"
+    <*> x .: "uom"
+    <*> x .: "quantity"
 
 instance ToJSON ResponseItem where
   toJSON (ResponseItem n i u x)

@@ -116,12 +116,12 @@ pUOM = prism' pretty parse
         pretty (u `Times` v) = (u ^. re pUOM) <> dash <> (v ^. re pUOM)
         pretty (UOM p b)     = (p ^. re pPrefixUOM) <> (b ^. re pBaseUOM)
 
-        -- treat UOM @Times@ as right-associative.
+        -- treat UOM @Times@ as left-associative.
         parse = hush . AT.parseOnly (parser <* AT.endOfInput)
         parser = do
           uoms <- puom `AT.sepBy` AT.string dash
           case uoms of []     -> mzero
-                       -- construct right-associative UOMs
+                       -- construct left-associative UOMs
                        (u:us) -> return $ foldl Times u us
         puom = do
           pre  <- AT.option (Just Base) ppre

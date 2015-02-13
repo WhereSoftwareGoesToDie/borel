@@ -38,7 +38,8 @@ type Message = Text
 
 data BorelError
   = SourceDictLookup SourceDict Message
-  deriving Show
+  | ConfigLoad                  Message
+  deriving (Eq, Show)
 
 lookupSD :: Text -> SourceDict -> Either BorelError Text
 lookupSD key sd

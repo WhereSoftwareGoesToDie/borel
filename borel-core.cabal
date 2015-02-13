@@ -48,6 +48,7 @@ library
                    , bytestring
                    , cassava
                    , containers >=0.5 && <0.6
+                   , configurator
                    , errors
                    , fast-logger
                    , http-client

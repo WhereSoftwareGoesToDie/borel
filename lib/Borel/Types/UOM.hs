@@ -154,6 +154,7 @@ instance Read UOM where
 
 instance FromJSON UOM where
   parseJSON (String t) = maybe mzero return $ t ^? pUOM
+  parseJSON _          = mzero
 
 instance ToJSON UOM where
   toJSON x = String $ x ^. re pUOM

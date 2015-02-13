@@ -20,10 +20,11 @@ module Borel
   , nanoSec, byte, megabyte, gigabyte
   , convert
 
-    -- * Config
-  , Config(..), mkConfig
+    -- * BorelConfig
+  , BorelConfig(..)
+  , mkBorelConfig, parseBorelConfig, loadBorelConfig
   , allInstances, allMetrics
-  , paramConfig, paramFlavorMap, paramOrigins, paramMarquiseURI, paramChevalierURI
+  , paramBorelConfig, paramFlavorMap, paramOrigins, paramMarquiseURI, paramChevalierURI
 
     -- * Query arguments
   , BorelEnv
@@ -33,6 +34,7 @@ module Borel
     -- * Running
   , ResponseItem(..), mkItem
   , run, runF
+  , BorelError(..)
 
   ) where
 
@@ -83,7 +85,7 @@ groupMetrics instances metrics
 --   to find, fetch, decode and aggregate data for an OpenStack tenancy.
 --
 run :: (MonadSafe m, Applicative m)
-    => Config               -- ^ Borel config, e.g. contains Chevalier/Marquise URI.
+    => BorelConfig          -- ^ Borel config, e.g. contains Chevalier/Marquise URI.
     -> Set Metric           -- ^ Metrics requested
     -> TenancyID            -- ^ OpenStack tenancy (can lead to multiple metrics)
     -> TimeStamp            -- ^ Start time
@@ -93,7 +95,7 @@ run    conf ms tid s e = runBorel conf ms tid s e (queryF snd)
 
 runF :: (MonadSafe m, Applicative m)
      => ((Metric, ResponseItem) -> a)
-     -> Config               -- ^ Borel config, e.g. contains Chevalier/Marquise URI.
+     -> BorelConfig          -- ^ Borel config, e.g. contains Chevalier/Marquise URI.
      -> Set Metric           -- ^ Metrics requested
      -> TenancyID            -- ^ OpenStack tenancy (can lead to multiple metrics)
      -> TimeStamp            -- ^ Start time
@@ -106,11 +108,11 @@ queryF :: (Applicative m, MonadSafe m)
        ->  Producer a (BorelS m) ()
 queryF f = do
   params <- ask
-  let flavors = params ^. paramConfig . paramFlavorMap
+  let flavors = params ^. paramBorelConfig . paramFlavorMap
       start   = params ^. paramStart
       end     = params ^. paramEnd
       grouped = groupMetrics
-              ( params ^. paramConfig . allInstances)
+              ( params ^. paramBorelConfig . allInstances)
               ( params ^. paramMetrics)
   P.enumerate
     [ f (fst result, mkItem sd result)
@@ -177,12 +179,12 @@ marquise params (metrics, origin, addr) = case metrics of
     | otherwise          -> getSomePoints
   _                      -> getSomePoints
   where getAllPoints = P.enumerate $ eventMetrics
-                         (params ^. paramConfig . paramMarquiseURI)
+                         (params ^. paramBorelConfig . paramMarquiseURI)
                           origin addr
                          (params ^. paramStart)
                          (params ^. paramEnd)
         getSomePoints = P.enumerate $ getMetrics
-                         (params ^. paramConfig . paramMarquiseURI)
+                         (params ^. paramBorelConfig . paramMarquiseURI)
                           origin addr
                          (params ^. paramStart)
                          (params ^. paramEnd)
@@ -196,12 +198,12 @@ chevalier :: MonadSafe m
 chevalier (metrics, tid) = do
   params <- lift ask
   let req = C.buildRequestFromPairs $ chevalierTags
-            (params ^. paramConfig . allInstances)
+            (params ^. paramBorelConfig . allInstances)
             (metrics, tid)
   P.enumerate
     [ (org, addr, sd)
-    | org        <- Select $ P.each (params ^. paramConfig . paramOrigins)
-    , (addr, sd) <- addressesWith (  params ^. paramConfig . paramChevalierURI) org req
+    | org        <- Select $ P.each (params ^. paramBorelConfig . paramOrigins)
+    , (addr, sd) <- addressesWith (  params ^. paramBorelConfig . paramChevalierURI) org req
     ]
 
 chevalierTags :: Set Metric -> (GroupedMetric, TenancyID) -> [(Text, Text)]

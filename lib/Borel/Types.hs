@@ -10,17 +10,23 @@
 -- Borel requests.
 --
 {-# LANGUAGE DeriveFunctor              #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE TupleSections              #-}
 {-# LANGUAGE TypeFamilies               #-}
 
+-- for configuration
+{-# OPTIONS -fno-warn-orphans #-}
+
 module Borel.Types
-  ( -- * Config
-    Config(..), mkConfig
+  ( -- * BorelConfig
+    BorelConfig(..)
+  , mkBorelConfig, parseBorelConfig, loadBorelConfig
   , allInstances, allMetrics
-  , paramConfig, paramFlavorMap, paramOrigins, paramMarquiseURI, paramChevalierURI
+  , paramBorelConfig, paramFlavorMap, paramOrigins, paramMarquiseURI, paramChevalierURI
 
     -- * Query arguments
   , BorelEnv
@@ -37,14 +43,20 @@ module Borel.Types
   ) where
 
 import           Control.Applicative
-import           Control.Lens          (makeLenses)
+import           Control.Concurrent      (ThreadId)
+import           Control.Error.Util
+import           Control.Lens            (makeLenses)
 import           Control.Monad.Reader
 import           Data.Aeson
-import qualified Data.Bimap            as BM
+import qualified Data.Bimap              as BM
+import qualified Data.Configurator       as C
+import qualified Data.Configurator.Types as C
+import qualified Data.Foldable           as F
 import           Data.Monoid
-import           Data.Set              (Set)
-import qualified Data.Set              as S
-import           Data.Text             (Text)
+import           Data.Set                (Set)
+import qualified Data.Set                as S
+import           Data.Text               (Text)
+import qualified Data.Text               as T
 import           Data.Time.Clock
 import           Data.Time.Clock.POSIX
 import           Network.URI
@@ -56,10 +68,14 @@ import           Ceilometer.Types
 import           Marquise.Types
 import           Vaultaire.Types
 
-import           Borel.Types.Metric    as X
-import           Borel.Types.Result    as X
-import           Borel.Types.UOM       as X
+import           Borel.Error             as X
+import           Borel.Types.Metric      as X
+import           Borel.Types.Result      as X
+import           Borel.Types.UOM         as X
 
+
+
+--------------------------------------------------------------------------------
 
 newtype TenancyID = TenancyID { _tenancyID :: Text }
   deriving (Eq, Show)
@@ -67,10 +83,13 @@ newtype TenancyID = TenancyID { _tenancyID :: Text }
 instance ToJSON TenancyID where
   toJSON (TenancyID x) = object [ "tenancy-id" .= x ]
 
--- | Configure Borel globals that persist across many queries.
+
+--------------------------------------------------------------------------------
+
+-- | BorelConfigure Borel globals that persist across many queries.
 --   (can be reloaded).
 --
-data Config = Config
+data BorelConfig = BorelConfig
   { _paramOrigins      :: Set Origin
   , _paramMarquiseURI  :: URI
   , _paramChevalierURI :: URI
@@ -78,11 +97,11 @@ data Config = Config
   , _allInstances      :: Set Metric
   , _allMetrics        :: Set Metric }
 
-makeLenses ''Config
+makeLenses ''BorelConfig
 
-mkConfig :: Set Origin -> URI -> URI -> FlavorMap -> Config
-mkConfig org marq chev fm
-  = Config org marq chev fm (S.fromList fs) (S.fromList ms)
+mkBorelConfig :: Set Origin -> URI -> URI -> FlavorMap -> BorelConfig
+mkBorelConfig org marq chev fm
+  = BorelConfig org marq chev fm (S.fromList fs) (S.fromList ms)
   where ms :: [Metric]
         ms = fs <>
           [ diskReads, diskWrites
@@ -93,13 +112,48 @@ mkConfig org marq chev fm
         fs :: [Metric]
         fs = map mkInstance (BM.keys fm)
 
+parseBorelConfig :: C.Config -> IO (Either BorelError BorelConfig)
+parseBorelConfig raw
+  =   note (ConfigLoad "cannot parse OpenStack Borel configuarion")
+  <$> (liftM4 mkBorelConfig
+      <$> C.lookup raw nameOrigins
+      <*> C.lookup raw nameMarquise
+      <*> C.lookup raw nameChevalier
+      <*> C.lookup raw nameFlavors)
+  where nameOrigins   = "origins"
+        nameMarquise  = "marquise-reader-uri"
+        nameChevalier = "chevalier-uri"
+        nameFlavors   = "instance-flavors"
 
+loadBorelConfig :: FilePath -> IO (Either BorelError (BorelConfig, ThreadId))
+loadBorelConfig filepath = do
+  -- TODO add handler for config loading failure
+  (raw, t) <- C.autoReload C.autoConfig [C.Required filepath]
+  conf     <- parseBorelConfig raw
+  return $ (,t) <$> conf
+
+instance C.Configured (Set Origin) where
+  convert (C.List xs) = F.foldMap C.convert xs
+  convert  _          = Nothing
+
+instance C.Configured URI where
+  convert (C.String s) = parseURI (T.unpack s)
+  convert  _           = Nothing
+
+instance C.Configured FlavorMap where
+  convert (C.List xs)  = BM.fromList <$> F.foldMap C.convert xs
+  convert  _           = Nothing
+
+--------------------------------------------------------------------------------
+
+-- | Parameters for a Borel request
+--
 data BorelEnv = BorelEnv
-  { _paramConfig  :: Config
-  , _paramMetrics :: Set Metric
-  , _paramTID     :: TenancyID
-  , _paramStart   :: TimeStamp
-  , _paramEnd     :: TimeStamp
+  { _paramBorelConfig :: BorelConfig
+  , _paramMetrics     :: Set Metric
+  , _paramTID         :: TenancyID
+  , _paramStart       :: TimeStamp
+  , _paramEnd         :: TimeStamp
   }
 
 makeLenses ''BorelEnv
@@ -112,6 +166,8 @@ defaultStart =  liftM (addTimeStamp ((-7) * posixDayLength)) getCurrentTimeNanos
 defaultEnd :: IO TimeStamp
 defaultEnd = getCurrentTimeNanoseconds
 
+
+--------------------------------------------------------------------------------
 
 newtype BorelS m a = BorelS { borelM :: ReaderT BorelEnv m a }
   deriving ( Functor, Applicative, Monad
@@ -126,7 +182,7 @@ instance MonadSafe m => MonadSafe (BorelS m) where
   release  = lift . release
 
 runBorel :: Monad m
-         => Config
+         => BorelConfig
          -> Set Metric
          -> TenancyID
          -> TimeStamp

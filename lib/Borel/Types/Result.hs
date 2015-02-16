@@ -15,10 +15,10 @@ module Borel.Types.Result
   , mkItem
   ) where
 
-import Control.Applicative
-import           Control.Lens          hiding ((.=))
-import           Data.Aeson            hiding (Result)
-import           Data.Text             (Text)
+import           Control.Applicative
+import           Control.Lens        hiding ((.=))
+import           Data.Aeson          hiding (Result)
+import           Data.Text           (Text)
 import           Data.Word
 
 import           Ceilometer.Tags

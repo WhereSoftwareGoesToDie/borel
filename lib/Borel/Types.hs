@@ -85,6 +85,8 @@ newtype TenancyID = TenancyID { _tenancyID :: Text }
 instance ToJSON TenancyID where
   toJSON (TenancyID x) = object [ "tenancy-id" .= x ]
 
+instance Read TenancyID where
+  readsPrec _ = maybe [] (pure . (,"")) . Just . TenancyID . T.pack
 
 --------------------------------------------------------------------------------
 

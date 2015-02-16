@@ -54,6 +54,7 @@ import           Data.Text            (Text)
 import           Data.Word
 import           Pipes                hiding (Proxy)
 import qualified Pipes                as P
+import qualified Pipes.Prelude                as P
 import           Pipes.Safe
 
 -- friends
@@ -66,6 +67,8 @@ import           Vaultaire.Types
 -- family
 import           Borel.Types
 
+
+--------------------------------------------------------------------------------
 
 type GroupedMetric = [Metric]
 
@@ -81,6 +84,9 @@ groupMetrics instances metrics
   =  let (allfs, nonfs) = _1 %~ S.toList $ S.partition (`S.member` instances) metrics
      in  S.insert allfs $ S.map pure nonfs
 
+
+--------------------------------------------------------------------------------
+
 -- | Leverages Chevalier, Marquise and Ceilometer
 --   to find, fetch, decode and aggregate data for an OpenStack tenancy.
 --
@@ -91,8 +97,11 @@ run :: (MonadSafe m, Applicative m)
     -> TimeStamp            -- ^ Start time
     -> TimeStamp            -- ^ End time
     -> Producer ResponseItem m ()
-run    conf ms tid s e = runBorel conf ms tid s e (queryF snd)
+run    conf ms tid s e = runBorel conf ms tid s e (query >-> P.map snd)
 
+-- | Acts like a functor over the produced results.
+--   This is not a Haskell functor, it's a functor between Hask and cat of Proxy composition.
+--
 runF :: (MonadSafe m, Applicative m)
      => ((Metric, ResponseItem) -> a)
      -> BorelConfig          -- ^ Borel config, e.g. contains Chevalier/Marquise URI.
@@ -101,12 +110,11 @@ runF :: (MonadSafe m, Applicative m)
      -> TimeStamp            -- ^ Start time
      -> TimeStamp            -- ^ End time
      -> Producer a m ()
-runF f conf ms tid s e = runBorel conf ms tid s e (queryF f)
+runF f conf ms tid s e = runBorel conf ms tid s e (query >-> P.map f)
 
-queryF :: (Applicative m, MonadSafe m)
-       => ((Metric, ResponseItem) -> a)
-       ->  Producer a (BorelS m) ()
-queryF f = do
+query :: (Applicative m, MonadSafe m)
+      =>  Producer (Metric, ResponseItem) (BorelS m) ()
+query = do
   params <- ask
   let flavors = params ^. paramBorelConfig . paramFlavorMap
       start   = params ^. paramStart
@@ -115,7 +123,7 @@ queryF f = do
               ( params ^. paramBorelConfig . allInstances)
               ( params ^. paramMetrics)
   P.enumerate
-    [ f (fst result, mkItem sd result)
+    [ (fst result, mkItem sd result)
     | metrics         <- Select $ P.each grouped
     , (org, addr, sd) <- Select $ chevalier (metrics, params ^. paramTID)
     , result          <- Select $ each' $ ceilometer
@@ -125,6 +133,8 @@ queryF f = do
     ]
   where each' :: Monad m => m [a] -> Producer a m ()
         each' x = lift x >>= P.each
+
+--------------------------------------------------------------------------------
 
 -- | Use Ceilometer to decode and aggregate a stream of raw data points.
 --
@@ -165,6 +175,8 @@ ceilometer fm metrics cenv points = case metrics of
                                           $  L.find (== mkInstance k1) ms) []
 
 
+--------------------------------------------------------------------------------
+
 -- | Use Marquise to fetch raw data points.
 --
 marquise :: MonadSafe m
@@ -188,6 +200,8 @@ marquise params (metrics, origin, addr) = case metrics of
                           origin addr
                          (params ^. paramStart)
                          (params ^. paramEnd)
+
+--------------------------------------------------------------------------------
 
 -- | Use Chevalier to find origin, address, sourcedict that contains data relevant
 --   to this OpenStack tenancy.

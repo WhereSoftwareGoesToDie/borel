@@ -6,7 +6,10 @@
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeOperators       #-}
-{-# LANGUAGE TransformListComp #-}
+{-# LANGUAGE TransformListComp   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE GADTs               #-}
+{-# LANGUAGE CPP                 #-}
 
 module Borel
   ( -- * Metric
@@ -31,8 +34,12 @@ module Borel
   , paramStart, paramEnd, paramMetrics, paramTID
   , TenancyID(..)
 
+    -- * Query results
+  , ResponseItem(..)
+  , mkItem
+  , respResource, respResourceID, respUOM, respQuantity
+
     -- * Running
-  , ResponseItem(..), mkItem
   , run, runF
   , BorelError(..)
 
@@ -42,20 +49,20 @@ import           Control.Applicative
 import           Control.Lens
 import           Control.Monad.Reader
 import qualified Data.Bimap           as BM
-import qualified Data.Foldable        as F
 import qualified Data.List            as L
-import           Data.Map             (Map)
 import qualified Data.Map             as M
 import           Data.Maybe
-import           Data.Monoid
 import           Data.Set             (Set)
 import qualified Data.Set             as S
 import           Data.Text            (Text)
-import           Data.Word
 import           Pipes                hiding (Proxy)
 import qualified Pipes                as P
 import qualified Pipes.Prelude                as P
 import           Pipes.Safe
+
+#ifdef BOREL_DEBUG
+import           System.Log.Logger
+#endif
 
 -- friends
 import           Ceilometer.Client
@@ -112,9 +119,18 @@ runF :: (MonadSafe m, Applicative m)
      -> Producer a m ()
 runF f conf ms tid s e = runBorel conf ms tid s e (query >-> P.map f)
 
+#ifdef BOREL_DEBUG
+query :: (Applicative m, MonadSafe m, MonadIO m)
+#else
 query :: (Applicative m, MonadSafe m)
+#endif
       =>  Producer (Metric, ResponseItem) (BorelS m) ()
 query = do
+#ifdef BOREL_DEBUG
+  liftIO $ do
+    debugM "borel" "start a Borel query"
+    updateGlobalLogger "borel" (setLevel DEBUG)
+#endif
   params <- ask
   let flavors = params ^. paramBorelConfig . paramFlavorMap
       start   = params ^. paramStart
@@ -125,49 +141,44 @@ query = do
   P.enumerate
     [ (fst result, mkItem sd result)
     | metrics         <- Select $ P.each grouped
-    , (org, addr, sd) <- Select $ chevalier (metrics, params ^. paramTID)
+    , (org, addr, sd) <- Select $ chevalier (metrics, params ^. paramTID) >-> P.tee P.print
     , result          <- Select $ each' $ ceilometer
                          flavors metrics
                          (Env flavors sd start end)
                          (marquise params (metrics, org, addr))
+    , snd result > 0
     ]
   where each' :: Monad m => m [a] -> Producer a m ()
         each' x = lift x >>= P.each
+
 
 --------------------------------------------------------------------------------
 
 -- | Use Ceilometer to decode and aggregate a stream of raw data points.
 --
+#ifdef BOREL_DEBUG
+ceilometer
+    :: (MonadIO m, Applicative m)
+#else
 ceilometer
     :: (Monad m, Applicative m)
+#endif
     => FlavorMap                 -- ^ Instance flavor mapping
     -> GroupedMetric             -- ^ Requested metrics, this determines how we present the fold result
     -> Env                       -- ^ Ceilometer arguments
     -> Producer SimplePoint m () -- ^ Raw points
     -> m [Result]
-ceilometer fm metrics cenv points = case metrics of
-  [m] -> if
-    | m == cpu     -> poke (single m) $ decodeAndFold (undefined :: proxy PDCPU)            cenv points
-    | m == volumes -> poke (single m) $ decodeAndFold (undefined :: proxy PDVolume)         cenv points
-    | m == vcpus   -> poke (sumMap m) $ decodeAndFold (undefined :: proxy PDInstanceVCPU)   cenv points
-    | otherwise    -> return []
-  ms@_   -> if
-    -- the flavors queried are known in our flavor map config.
-    | fs <- intersect ms fm, not $ null fs
-                   -> poke (group fs) $ decodeAndFold (undefined :: proxy PDInstanceFlavor) cenv points
-    -- we have no idea what they're talking about!
-    | otherwise    -> return []
-  where single     :: Metric -> Word64 -> [Result]
-        single m v =  [(m, v)]
-
-        sumMap      :: Metric -> Map PFValue32 Word64 -> [Result]
-        sumMap m vs = [(m, M.foldlWithKey (\a k v -> a + (fromIntegral k * v)) 0 vs)]
-
-        group      :: [(Metric, Flavor)] -> Map PFValueText Word64 -> [Result]
-        group ms vs = map (\(metric, flavor) -> (metric,) $ fromMaybe 0 $ M.lookup flavor vs) ms
-
-        poke :: (Functor f, Foldable t, Monoid b) => (a -> b) -> f (t a) -> f b
-        poke = fmap . F.foldMap
+ceilometer flavors metrics cenv raw
+  =   fromMaybe []
+  <$> fmap handleResult
+  <$> decodeFold cenv raw
+  where handleResult :: FoldResult -> [Result]
+        handleResult x = case (x, metrics) of
+          (RSingle  val,  [m]) -> [(m,val)]
+          (RMapNum  vals, [m]) -> [(m, M.foldlWithKey (\a k v -> a + (fromIntegral k * v)) 0 vals)]
+          (RMapText vals,  _)  -> let ms = intersect metrics flavors
+                                  in  map (\(metric, flavor) -> (metric,) $ fromMaybe 0 $ M.lookup flavor vals) ms
+          _                    -> []
 
         --  Intersect the flavor map and the list of metrics requested. Flatten the result.
         intersect :: [Metric] -> FlavorMap -> [(Metric, Flavor)]
@@ -179,17 +190,28 @@ ceilometer fm metrics cenv points = case metrics of
 
 -- | Use Marquise to fetch raw data points.
 --
+#ifdef BOREL_DEBUG
+marquise :: (MonadIO m, MonadSafe m)
+#else
 marquise :: MonadSafe m
+#endif
          => BorelEnv
          -> (GroupedMetric, Origin, Address)
          -> Producer SimplePoint m ()
-marquise params (metrics, origin, addr) = case metrics of
-  [metric] -> if
-    | metric == volumes  -> getAllPoints
-    | metric == ipv4     -> getAllPoints
-    | metric == snapshot -> getAllPoints
-    | otherwise          -> getSomePoints
-  _                      -> getSomePoints
+marquise params (metrics, origin, addr) = do
+#ifdef BOREL_DEBUG
+  liftIO $ debugM "borel" ("fetching from marquise with origin="
+                           <> show origin
+                           <> " addr="
+                           <> show addr)
+#endif
+  case metrics of
+      [metric] -> if
+        | metric == volumes  -> getAllPoints
+        | metric == ipv4     -> getAllPoints
+        | metric == snapshot -> getAllPoints
+        | otherwise          -> getSomePoints
+      _                      -> getSomePoints
   where getAllPoints = P.enumerate $ eventMetrics
                          (params ^. paramBorelConfig . paramMarquiseURI)
                           origin addr
@@ -206,10 +228,20 @@ marquise params (metrics, origin, addr) = case metrics of
 -- | Use Chevalier to find origin, address, sourcedict that contains data relevant
 --   to this OpenStack tenancy.
 --
+#ifdef BOREL_DEBUG
+chevalier :: (MonadIO m, MonadSafe m)
+#else
 chevalier :: MonadSafe m
+#endif
           => (GroupedMetric, TenancyID)
           -> Producer (Origin, Address, SourceDict) (BorelS m) ()
 chevalier (metrics, tid) = do
+#ifdef BOREL_DEBUG
+  liftIO $ debugM "borel" ("searching chevalier with tenancy="
+                          <> show tid
+                          <> " requested="
+                          <> show (map deserialise metrics))
+#endif
   params <- lift ask
   let req = C.buildRequestFromPairs $ chevalierTags
             (params ^. paramBorelConfig . allInstances)

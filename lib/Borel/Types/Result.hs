@@ -1,4 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell   #-}
+
 -- | Copyright 2013-2015 Anchor Systems, Pty Ltd and Others
 --
 -- The code in this file, and the program it is a part of, is
@@ -12,9 +14,12 @@
 module Borel.Types.Result
   ( Result
   , ResponseItem(..)
+  , respResource, respResourceID
+  , respUOM, respQuantity                  
   , mkItem
   ) where
 
+import           Control.Monad
 import           Control.Applicative
 import           Control.Lens        hiding ((.=))
 import           Data.Aeson          hiding (Result)
@@ -31,11 +36,13 @@ import           Borel.Types.UOM
 type Result = (Metric, Word64)
 
 data ResponseItem = ResponseItem
-  { _resource         :: Text
-  , _resourceID       :: Text
-  , _resourceUOM      :: UOM
-  , _resourceQuantity :: Word64 }
+  { _respResource   :: Text
+  , _respResourceID :: Text
+  , _respUOM        :: UOM
+  , _respQuantity   :: Word64 }
   deriving (Eq, Show)
+
+makeLenses ''ResponseItem
 
 instance FromJSON ResponseItem where
   parseJSON (Object x)
@@ -44,6 +51,7 @@ instance FromJSON ResponseItem where
     <*> x .: "resource-id"
     <*> x .: "uom"
     <*> x .: "quantity"
+  parseJSON _ = mzero
 
 instance ToJSON ResponseItem where
   toJSON (ResponseItem n i u x)

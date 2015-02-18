@@ -80,7 +80,10 @@ import           Borel.Types.UOM         as X
 --------------------------------------------------------------------------------
 
 newtype TenancyID = TenancyID { _tenancyID :: Text }
-  deriving (Eq, Show)
+  deriving (Eq)
+
+instance Show TenancyID where
+  show = show . _tenancyID
 
 instance ToJSON TenancyID where
   toJSON (TenancyID x) = object [ "tenancy-id" .= x ]
@@ -149,6 +152,7 @@ loadBorelConfig filepath = do
 
 instance C.Configured Origin where
   convert (C.String s) = hush $ makeOrigin $ T.encodeUtf8 s
+  convert _            = Nothing
 
 instance C.Configured (Set Origin) where
   convert (C.List xs) = S.fromList <$> T.mapM C.convert xs

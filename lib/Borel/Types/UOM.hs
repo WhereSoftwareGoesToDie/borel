@@ -167,12 +167,12 @@ instance ToJSON UOM where
 
 nanosecToSec :: (UOM, Word64) -> (UOM, Word64)
 nanosecToSec (u, v)
-  = (transformOf traverseUOM (const sec) u,)
+  = (transformOf traverseUOM (\x -> if x == nanosec then sec else x) u,)
   $ tryConvert nanosec sec v
 
 byteToGigabyte :: (UOM, Word64) -> (UOM, Word64)
 byteToGigabyte (u, v)
-  = (transformOf traverseUOM (const gigabyte) u,)
+  = (transformOf traverseUOM (\x -> if x == byte then gigabyte else x) u,)
   $ tryConvert nanosec sec v
 
 traverseUOM :: Traversal' UOM UOM

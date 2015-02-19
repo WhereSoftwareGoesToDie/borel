@@ -41,13 +41,13 @@ mkInstance :: Flavor -> Metric
 mkInstance name = Metric
   { deserialise      = "instances/" <> name
   , pretty           = "instance-"  <> name <> "-allocation"
-  , uom              = UOM Base Instance `Times` nanoSec
+  , uom              = UOM Base Instance `Times` nanosec
   }
 
 cpu                  = Metric
   { deserialise      = "cpu"
   , pretty           = "cpu-usage"
-  , uom              = UOM Base CPU `Times` nanoSec
+  , uom              = UOM Base CPU `Times` nanosec
   }
 
 diskReads            = Metric
@@ -77,35 +77,35 @@ neutronOut           = Metric
 ipv4                 = Metric
   { deserialise      = "ipv4-addresses"
   , pretty           = "floating-ip-allocation"
-  , uom              = UOM Base IPAddress `Times` nanoSec
+  , uom              = UOM Base IPAddress `Times` nanosec
   }
 
 volumes              = Metric
   { deserialise      = "volumes"
   , pretty           = "volume-allocation"
-  , uom              = gigabyte `Times` nanoSec
+  , uom              = gigabyte `Times` nanosec
   }
 
 vcpus                = Metric
   { deserialise      = "vcpus"
   , pretty           = "vcpu-allocation"
-  , uom              = UOM Base VCPU `Times` nanoSec
+  , uom              = UOM Base VCPU `Times` nanosec
   }
 
 memory               = Metric
   { deserialise      = "memory"
   , pretty           = "memory-allocation"
-  , uom              = megabyte `Times` nanoSec
+  , uom              = megabyte `Times` nanosec
   }
 
 snapshot             = Metric
   { deserialise      = "snapshot"
   , pretty           = "snapshot"
-  , uom              = gigabyte `Times` nanoSec
+  , uom              = gigabyte `Times` nanosec
   }
 
 image                = Metric
   { deserialise      = "image"
   , pretty           = "image"
-  , uom              = byte `Times` nanoSec
+  , uom              = byte `Times` nanosec
   }

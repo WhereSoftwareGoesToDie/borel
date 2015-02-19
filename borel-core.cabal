@@ -106,6 +106,7 @@ test-suite unit
                    , blaze-builder
                    , bytestring
                    , cassava
+                   , configurator
                    , containers >=0.5 && <0.6
                    , errors
                    , fast-logger

@@ -6,7 +6,6 @@
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeOperators       #-}
-{-# LANGUAGE TransformListComp   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE CPP                 #-}
@@ -20,8 +19,9 @@ module Borel
 
     -- * Unit of measurement
   , UOM(..), BaseUOM(..), Prefix(..)
-  , nanoSec, byte, megabyte, gigabyte
+  , nanosec, byte, megabyte, gigabyte
   , convert
+  , nanosecToSec, byteToGigabyte
 
     -- * BorelConfig
   , BorelConfig(..)
@@ -38,6 +38,7 @@ module Borel
   , ResponseItem(..)
   , mkItem
   , respResource, respResourceID, respUOM, respQuantity
+  , traverseUOMVal
 
     -- * Running
   , run, runF
@@ -61,6 +62,7 @@ import qualified Pipes.Prelude                as P
 import           Pipes.Safe
 
 #ifdef BOREL_DEBUG
+import           Data.Monoid
 import           System.Log.Logger
 #endif
 
@@ -146,7 +148,6 @@ query = do
                          flavors metrics
                          (Env flavors sd start end)
                          (marquise params (metrics, org, addr))
-    , snd result > 0
     ]
   where each' :: Monad m => m [a] -> Producer a m ()
         each' x = lift x >>= P.each

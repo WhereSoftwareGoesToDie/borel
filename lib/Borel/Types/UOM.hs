@@ -19,17 +19,20 @@ module Borel.Types.UOM
     UOM(..), BaseUOM(..), Prefix(..)
 
     -- * Convenient constructors
-  , nanoSec, byte, megabyte, gigabyte
+  , sec, nanosec, byte, megabyte, gigabyte
 
     -- * Utilities
-  , convert
   , pUOM, pPrefixUOM, pBaseUOM
+  , convert
+  , nanosecToSec, byteToGigabyte
   ) where
 
+import Data.Maybe
 import           Control.Applicative
 import           Control.Error.Util
-import           Control.Lens         (Prism', preview, prism', re, review,
-                                       (^.), (^?))
+import           Control.Lens         (Prism', Traversal', preview, prism', re,
+                                       review, (^.), (^?))
+import           Control.Lens.Plated
 import           Control.Monad
 import           Data.Aeson
 import qualified Data.Attoparsec.Text as AT
@@ -40,8 +43,8 @@ import           Data.Text            (Text)
 import qualified Data.Text            as T
 import           Data.Word
 
-
-nanoSec  = UOM Nano Second
+nanosec  = UOM Nano Second
+sec      = UOM Base Second
 byte     = UOM Base Byte
 megabyte = UOM Mega Byte
 gigabyte = UOM Giga Byte
@@ -160,6 +163,23 @@ instance ToJSON UOM where
   toJSON x = String $ x ^. re pUOM
 
 
+-- Convenient conversions
+
+nanosecToSec :: (UOM, Word64) -> (UOM, Word64)
+nanosecToSec (u, v)
+  = (transformOf traverseUOM (const sec) u,)
+  $ tryConvert nanosec sec v
+
+byteToGigabyte :: (UOM, Word64) -> (UOM, Word64)
+byteToGigabyte (u, v)
+  = (transformOf traverseUOM (const gigabyte) u,)
+  $ tryConvert nanosec sec v
+
+traverseUOM :: Traversal' UOM UOM
+traverseUOM f x@(UOM _ _)   = f x
+traverseUOM f   (Times x y) = Times <$> f x <*> f y
+
+
 -- the following is copied from old borel code
 
 reduce :: BaseUOM -> ComparisonBase
@@ -171,28 +191,35 @@ reduce IPAddress = CIPAddress
 reduce CPU       = CCPU
 reduce VCPU      = CVCPU
 
-prefixWeighting :: Prefix -> Double
-prefixWeighting Base = 1
-prefixWeighting Giga = 10^^(9 :: Int)
-prefixWeighting Nano = 10^^(-9 :: Int)
-prefixWeighting Mebi = 1024^^(2 :: Int)
-prefixWeighting Mega = 10^^(6 :: Int)
+class Weighed a where
+  weigh :: a -> Double
 
-baseWeighting :: BaseUOM -> Double
-baseWeighting Hour = 60 * 60
-baseWeighting _ = 1
+instance Weighed Prefix where
+  weigh Base = 1
+  weigh Giga = 10^^(9 :: Int)
+  weigh Nano = 10^^(-9 :: Int)
+  weigh Mebi = 1024^^(2 :: Int)
+  weigh Mega = 10^^(6 :: Int)
 
-weighting :: UOM -> Double
-weighting (UOM p b) = prefixWeighting p * baseWeighting b
-weighting (a `Times` b) = weighting a * weighting b
+instance Weighed BaseUOM where
+  weigh Hour = 60 * 60
+  weigh _ = 1
 
-extractComparisonBases :: UOM -> MultiSet ComparisonBase
-extractComparisonBases (UOM _ b) = S.singleton $ reduce b
-extractComparisonBases (a `Times` b) = extractComparisonBases a <> extractComparisonBases b
+instance Weighed UOM where
+  weigh (UOM p b)     = weigh p * weigh b
+  weigh (a `Times` b) = weigh a * weigh b
+
+bases :: UOM -> MultiSet ComparisonBase
+bases (UOM _ b)     = S.singleton $ reduce b
+bases (a `Times` b) = bases a <> bases b
 
 convert :: UOM -> UOM -> Word64 -> Maybe Word64
 convert old new v
-  | extractComparisonBases old == extractComparisonBases new
-  = let factor = weighting old / weighting new
+  | bases old == bases new
+  = let factor = weigh old / weigh new
     in  Just $ floor $ toRational factor * toRational v
   | otherwise = Nothing
+
+tryConvert :: UOM -> UOM -> Word64 -> Word64
+tryConvert old new v = fromMaybe v $ convert old new v
+

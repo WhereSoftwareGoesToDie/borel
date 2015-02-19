@@ -12,11 +12,15 @@
 -- This module defines the Result type and how it's presented.
 --
 module Borel.Types.Result
-  ( Result
+  ( -- * Query results
+    Result
   , ResponseItem(..)
   , respResource, respResourceID
   , respUOM, respQuantity                  
   , mkItem
+
+    -- * Convenient
+  , traverseUOMVal
   ) where
 
 import           Control.Monad
@@ -65,3 +69,11 @@ mkItem sd (metric, quantity)
   = let (name, uid) = (keyMetricName, keyResourceID)
                     & both %~ (stopBorelError . flip lookupSD sd)
     in  ResponseItem name uid (uom metric) quantity
+
+-- Some convenient traversals
+
+traverseUOMVal :: Traversal' ResponseItem (UOM, Word64)
+traverseUOMVal f (ResponseItem x y u v)
+  =   ResponseItem x y
+  <$> (fst <$> f (u,v))
+  <*> (snd <$> f (u,v))

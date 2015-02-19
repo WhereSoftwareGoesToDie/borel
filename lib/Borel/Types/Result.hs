@@ -66,8 +66,8 @@ instance ToJSON ResponseItem where
 
 mkItem :: SourceDict -> Result -> ResponseItem
 mkItem sd (metric, quantity)
-  = let (name, uid) = (keyMetricName, keyResourceID)
-                    & both %~ (stopBorelError . flip lookupSD sd)
+  = let name = pretty metric
+        uid  = stopBorelError $ lookupSD keyResourceID sd
     in  ResponseItem name uid (uom metric) quantity
 
 -- Some convenient traversals

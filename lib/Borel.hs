@@ -143,7 +143,7 @@ query = do
   P.enumerate
     [ (fst result, mkItem sd result)
     | metrics         <- Select $ P.each grouped
-    , (org, addr, sd) <- Select $ chevalier (metrics, params ^. paramTID) >-> P.tee P.print
+    , (org, addr, sd) <- Select $ chevalier (metrics, params ^. paramTID)
     , result          <- Select $ each' $ ceilometer
                          flavors metrics
                          (Env flavors sd start end)

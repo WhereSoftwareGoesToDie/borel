@@ -1,14 +1,14 @@
+{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE GADTs               #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE MonadComprehensions #-}
 {-# LANGUAGE MultiWayIf          #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeOperators       #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE GADTs               #-}
-{-# LANGUAGE CPP                 #-}
 
 module Borel
   ( -- * Metric
@@ -55,31 +55,26 @@ import qualified Data.Map             as M
 import           Data.Maybe
 import           Data.Set             (Set)
 import qualified Data.Set             as S
-import           Data.Text            (Text)
 import           Pipes                hiding (Proxy)
 import qualified Pipes                as P
-import qualified Pipes.Prelude                as P
+import qualified Pipes.Prelude        as P
 import           Pipes.Safe
-
-#ifdef BOREL_DEBUG
-import           Data.Monoid
 import           System.Log.Logger
-#endif
 
 -- friends
 import           Ceilometer.Client
-import           Ceilometer.Tags
-import qualified Chevalier.Util       as C
+
+
 import           Vaultaire.Query
 import           Vaultaire.Types
 
 -- family
+import           Borel.Chevalier
+import           Borel.Marquise
 import           Borel.Types
 
 
 --------------------------------------------------------------------------------
-
-type GroupedMetric = [Metric]
 
 -- | Metrics that must be queried as a common Ceilometer resource are grouped together,
 --   others are left as-is.
@@ -121,18 +116,13 @@ runF :: (MonadSafe m, Applicative m)
      -> Producer a m ()
 runF f conf ms tid s e = runBorel conf ms tid s e (query >-> P.map f)
 
-#ifdef BOREL_DEBUG
 query :: (Applicative m, MonadSafe m, MonadIO m)
-#else
-query :: (Applicative m, MonadSafe m)
-#endif
       =>  Producer (Metric, ResponseItem) (BorelS m) ()
 query = do
-#ifdef BOREL_DEBUG
   liftIO $ do
     debugM "borel" "start a Borel query"
     updateGlobalLogger "borel" (setLevel DEBUG)
-#endif
+
   params <- ask
   let flavors = params ^. paramBorelConfig . paramFlavorMap
       start   = params ^. paramStart
@@ -157,13 +147,8 @@ query = do
 
 -- | Use Ceilometer to decode and aggregate a stream of raw data points.
 --
-#ifdef BOREL_DEBUG
 ceilometer
     :: (MonadIO m, Applicative m)
-#else
-ceilometer
-    :: (Monad m, Applicative m)
-#endif
     => FlavorMap                 -- ^ Instance flavor mapping
     -> GroupedMetric             -- ^ Requested metrics, this determines how we present the fold result
     -> Env                       -- ^ Ceilometer arguments
@@ -186,93 +171,3 @@ ceilometer flavors metrics cenv raw
         intersect ms = BM.fold (\k1 _ acc -> maybe acc ((:acc) . (,k1))
                                           $  L.find (== mkInstance k1) ms) []
 
-
---------------------------------------------------------------------------------
-
--- | Use Marquise to fetch raw data points.
---
-#ifdef BOREL_DEBUG
-marquise :: (MonadIO m, MonadSafe m)
-#else
-marquise :: MonadSafe m
-#endif
-         => BorelEnv
-         -> (GroupedMetric, Origin, Address)
-         -> Producer SimplePoint m ()
-marquise params (metrics, origin, addr) = do
-#ifdef BOREL_DEBUG
-  liftIO $ debugM "borel" ("fetching from marquise with origin="
-                           <> show origin
-                           <> " addr="
-                           <> show addr)
-#endif
-  case metrics of
-      [metric] -> if
-        | metric == volumes  -> getAllPoints
-        | metric == ipv4     -> getAllPoints
-        | metric == snapshot -> getAllPoints
-        | otherwise          -> getSomePoints
-      _                      -> getSomePoints
-  where getAllPoints = P.enumerate $ eventMetrics
-                         (params ^. paramBorelConfig . paramMarquiseURI)
-                          origin addr
-                         (params ^. paramStart)
-                         (params ^. paramEnd)
-        getSomePoints = P.enumerate $ getMetrics
-                         (params ^. paramBorelConfig . paramMarquiseURI)
-                          origin addr
-                         (params ^. paramStart)
-                         (params ^. paramEnd)
-
---------------------------------------------------------------------------------
-
--- | Use Chevalier to find origin, address, sourcedict that contains data relevant
---   to this OpenStack tenancy.
---
-#ifdef BOREL_DEBUG
-chevalier :: (MonadIO m, MonadSafe m)
-#else
-chevalier :: MonadSafe m
-#endif
-          => (GroupedMetric, TenancyID)
-          -> Producer (Origin, Address, SourceDict) (BorelS m) ()
-chevalier (metrics, tid) = do
-#ifdef BOREL_DEBUG
-  liftIO $ debugM "borel" ("searching chevalier with tenancy="
-                          <> show tid
-                          <> " requested="
-                          <> show (map deserialise metrics))
-#endif
-  params <- lift ask
-  let req = C.buildRequestFromPairs $ chevalierTags
-            (params ^. paramBorelConfig . allInstances)
-            (metrics, tid)
-  P.enumerate
-    [ (org, addr, sd)
-    | org        <- Select $ P.each (params ^. paramBorelConfig . paramOrigins)
-    , (addr, sd) <- addressesWith (  params ^. paramBorelConfig . paramChevalierURI) org req
-    ]
-
-chevalierTags :: Set Metric -> (GroupedMetric, TenancyID) -> [(Text, Text)]
-chevalierTags instances (ms, TenancyID tid) = case ms of
-  [metric] -> if
-    | metric == cpu        -> [tagID tid , tagName "cpu"                                  ]
-    | metric == volumes    -> [tagID tid , tagName "volume.size"            , tagEvent    ]
-    | metric == diskReads  -> [tagID tid , tagName "disk.read.bytes"                      ]
-    | metric == diskWrites -> [tagID tid , tagName "disk.write.bytes"                     ]
-    | metric == neutronIn  -> [tagID tid , tagName "network.incoming.bytes"               ]
-    | metric == neutronOut -> [tagID tid , tagName "network.outgoing.bytes"               ]
-    | metric == ipv4       -> [tagID tid , tagName "ip.floating"            , tagEvent    ]
-    | metric == vcpus      -> [tagID tid , tagName "instance_vcpus"         , tagPollster ]
-    | metric == memory     -> [tagID tid , tagName "instance_ram"           , tagPollster ]
-    | metric == snapshot   -> [tagID tid , tagName "snapshot.size"          , tagEvent    ]
-    | metric == image      -> [tagID tid , tagName "image.size"             , tagPollster ]
-    | otherwise            -> []
-  _ -> if
-    | all (`S.member` instances) ms
-                           -> [tagID tid , tagName "instance_flavor"        , tagPollster ]
-    | otherwise            -> []
-  where tagID       = (keyTenancyID,)
-        tagName     = (keyMetricName,)
-        tagEvent    = (keyEvent, valTrue)
-        tagPollster = (keyEvent, valFalse)

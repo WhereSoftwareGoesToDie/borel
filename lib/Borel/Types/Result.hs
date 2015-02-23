@@ -44,7 +44,7 @@ data ResponseItem = ResponseItem
   , _respResourceID :: Text
   , _respUOM        :: UOM
   , _respQuantity   :: Word64 }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Read)
 
 makeLenses ''ResponseItem
 

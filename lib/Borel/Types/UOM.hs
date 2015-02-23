@@ -24,15 +24,15 @@ module Borel.Types.UOM
     -- * Utilities
   , pUOM, pPrefixUOM, pBaseUOM
   , convert
+  , flattenUOM
   , nanosecToSec, byteToGigabyte
   ) where
 
 import Data.Maybe
 import           Control.Applicative
 import           Control.Error.Util
-import           Control.Lens         (Prism', Traversal', preview, prism', re,
+import           Control.Lens         (Prism', preview, prism', re,
                                        review, (^.), (^?))
-import           Control.Lens.Plated
 import           Control.Monad
 import           Data.Aeson
 import qualified Data.Attoparsec.Text as AT
@@ -49,6 +49,7 @@ byte     = UOM Base Byte
 megabyte = UOM Mega Byte
 gigabyte = UOM Giga Byte
 
+-- | Unit of measurement. Basically a monomorphic tree.
 data UOM
   = UOM Prefix BaseUOM
   | Times UOM UOM
@@ -60,7 +61,7 @@ data Prefix
   | Nano
   | Mebi
   | Mega
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Enum, Bounded)
 
 data BaseUOM
   = Second
@@ -70,7 +71,7 @@ data BaseUOM
   | IPAddress
   | CPU
   | VCPU
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Enum, Bounded)
 
 data ComparisonBase
   = CTime
@@ -167,18 +168,27 @@ instance ToJSON UOM where
 
 nanosecToSec :: (UOM, Word64) -> (UOM, Word64)
 nanosecToSec (u, v)
-  = (transformOf traverseUOM (\x -> if x == nanosec then sec else x) u,)
+  = (mapUOM f u,)
   $ tryConvert nanosec sec v
+  where f p b | UOM p b == nanosec = sec
+              | otherwise          = UOM p b
 
 byteToGigabyte :: (UOM, Word64) -> (UOM, Word64)
 byteToGigabyte (u, v)
-  = (transformOf traverseUOM (\x -> if x == byte then gigabyte else x) u,)
-  $ tryConvert nanosec sec v
+  = (mapUOM f u,)
+  $ tryConvert byte gigabyte v
+  where f p b | UOM p b == byte = gigabyte
+              | otherwise       = UOM p b
 
-traverseUOM :: Traversal' UOM UOM
-traverseUOM f x@(UOM _ _)   = f x
-traverseUOM f   (Times x y) = Times <$> f x <*> f y
 
+-- | UOM is a non-generic "functor"
+mapUOM :: (Prefix -> BaseUOM -> UOM) -> UOM -> UOM
+mapUOM f (UOM p b)   = f p b
+mapUOM f (Times x y) = Times (mapUOM f x) (mapUOM f y)
+
+flattenUOM :: UOM -> [UOM]
+flattenUOM x@(UOM _ _)   = [x]
+flattenUOM   (Times x y) = flattenUOM x ++ flattenUOM y
 
 -- the following is copied from old borel code
 

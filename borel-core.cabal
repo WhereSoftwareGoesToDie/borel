@@ -18,10 +18,6 @@ flag network-uri
    description: Get Network.URI from the network-uri package
    default: True
 
-flag debug
-   description: Logs debug information to stdout
-   default: False
-
 source-repository head
   type:                git
   location:            git@github.com:anchor/borel-core.git
@@ -37,9 +33,8 @@ library
                      Borel.Types.Metric
                      Borel.Types.Result
                      Borel.Error
-  if flag(debug)
-     cpp-options: -DBOREL_DEBUG
-     build-depends: hslogger
+                     Borel.Marquise
+                     Borel.Chevalier
 
   if flag(network-uri)
      build-depends: network-uri >= 2.6, network >= 2.6
@@ -59,6 +54,7 @@ library
                    , errors
                    , fast-logger
                    , http-client
+                   , hslogger
                    , lens
                    , monad-logger < 1.0
                    , mtl
@@ -71,6 +67,7 @@ library
                    , text
                    , time
                    , transformers
+                   , zeromq4-haskell >= 0.6.3
                    , ceilometer-common >= 0.1.0
                    , chevalier-common >= 0.4.0
                    , marquise >= 3.2.1
@@ -111,6 +108,7 @@ test-suite unit
                    , errors
                    , fast-logger
                    , http-client
+                   , hslogger
                    , lens
                    , monad-logger < 1.0
                    , mtl
@@ -129,3 +127,5 @@ test-suite unit
                    , vaultaire-common
                    , vaultaire-control
                    , vaultaire-query >= 0.5.0.1
+                   , zeromq4-haskell >= 0.6.3
+                   , QuickCheck >= 2.7.6

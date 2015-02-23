@@ -26,11 +26,16 @@ module Borel.Types
     BorelConfig(..)
   , mkBorelConfig, parseBorelConfig, loadBorelConfig
   , allInstances, allMetrics
-  , paramBorelConfig, paramFlavorMap, paramOrigins, paramMarquiseURI, paramChevalierURI
+  , paramBorelConfig
+  , paramFlavorMap
+  , paramOrigins
+  , paramMarquiseURI, paramChevalierURI
+  , paramZMQContext
 
     -- * Query arguments
   , BorelEnv
   , TenancyID(..)
+  , GroupedMetric
   , paramStart, paramEnd, paramMetrics, paramTID
 
     -- * Running
@@ -66,6 +71,7 @@ import           Network.URI
 import           Pipes
 import           Pipes.Lift
 import           Pipes.Safe
+import qualified System.ZMQ4             as Z
 
 import           Ceilometer.Types
 import           Marquise.Types
@@ -76,6 +82,8 @@ import           Borel.Types.Metric      as X
 import           Borel.Types.Result      as X
 import           Borel.Types.UOM         as X
 
+
+type GroupedMetric = [Metric]
 
 --------------------------------------------------------------------------------
 
@@ -98,6 +106,7 @@ instance Read TenancyID where
 --
 data BorelConfig = BorelConfig
   { _paramOrigins      :: Set Origin
+  , _paramZMQContext   :: Z.Context
   , _paramMarquiseURI  :: URI
   , _paramChevalierURI :: URI
   , _paramFlavorMap    :: FlavorMap
@@ -106,9 +115,9 @@ data BorelConfig = BorelConfig
 
 makeLenses ''BorelConfig
 
-mkBorelConfig :: Set Origin -> URI -> URI -> FlavorMap -> BorelConfig
-mkBorelConfig org marq chev fm
-  = BorelConfig org marq chev fm (S.fromList fs) (S.fromList ms)
+mkBorelConfig :: Set Origin -> Z.Context -> URI -> URI -> FlavorMap -> BorelConfig
+mkBorelConfig org ctx marq chev fm
+  = BorelConfig org ctx marq chev fm (S.fromList fs) (S.fromList ms)
   where ms :: [Metric]
         ms = fs <>
           [ diskReads, diskWrites
@@ -123,9 +132,11 @@ parseBorelConfig :: C.Config -> IO (Either BorelError BorelConfig)
 parseBorelConfig raw = do
   names   <- fromMaybe [] <$> C.lookup raw nameFlavors
   flavors <- mapM lookupFlavor names
+  context <- Z.context
 
-  liftM4 mkBorelConfig
+  liftM5 mkBorelConfig
     <$> (note (ConfigLoad "cannot read list of origins") <$> C.lookup raw nameOrigins)
+    <*> (return (Right context))
     <*> (note (ConfigLoad "cannot read Marquise URI")    <$> C.lookup raw nameMarquise)
     <*> (note (ConfigLoad "cannot read Chevalier URI")   <$> C.lookup raw nameChevalier)
     <*> (note (ConfigLoad "cannot read flavors")         <$> pure (BM.fromList <$> T.sequenceA flavors))

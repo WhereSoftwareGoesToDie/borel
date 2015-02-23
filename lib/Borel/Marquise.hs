@@ -70,7 +70,7 @@ rangeData ctx uri origin addr start end
   $ \conn -> hoist liftIO
            $ void $ M.catchMarquiseAll
              (M.readSimplePoints M.NoRetry addr start end origin conn)
-             (lift . lift . errorM "borel.marquise" . show)
+             (lift . lift . errorM "borel" . show)
 
 
 --------------------------------------------------------------------------------
@@ -84,7 +84,7 @@ runMarquiseReader
   => Z.Context -> URI
   -> (MarquiseReader -> Proxy a a' b b' m x)
   -> Proxy a a' b b' m  x
-runMarquiseReader ctx (show -> uri) act
+runMarquiseReader ctx (show -> uri) f
   = P.bracket (liftIO $ Z.socket ctx Z.Dealer) (liftIO . Z.close) $ \sock ->
     P.bracket (liftIO $ Z.connect sock uri)    (const $ return ())$ \_    ->
-      act (M.SocketState sock uri) 
+      f (M.SocketState sock uri) 

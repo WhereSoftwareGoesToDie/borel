@@ -49,10 +49,6 @@ module Borel
 import           Control.Applicative
 import           Control.Lens
 import           Control.Monad.Reader
-import qualified Data.Bimap           as BM
-import qualified Data.List            as L
-import qualified Data.Map             as M
-import           Data.Maybe
 import           Data.Set             (Set)
 import qualified Data.Set             as S
 import           Pipes                hiding (Proxy)
@@ -63,12 +59,10 @@ import           System.Log.Logger
 
 -- friends
 import           Ceilometer.Client
-
-
-import           Vaultaire.Query
 import           Vaultaire.Types
 
 -- family
+import           Borel.Ceilometer
 import           Borel.Chevalier
 import           Borel.Marquise
 import           Borel.Types
@@ -119,9 +113,7 @@ runF f conf ms tid s e = runBorel conf ms tid s e (query >-> P.map f)
 query :: (Applicative m, MonadSafe m, MonadIO m)
       =>  Producer (Metric, ResponseItem) (BorelS m) ()
 query = do
-  liftIO $ do
-    debugM "borel" "start a Borel query"
-    updateGlobalLogger "borel" (setLevel DEBUG)
+  liftIO $ updateGlobalLogger "borel" (setLevel DEBUG)
 
   params <- ask
   let flavors = params ^. paramBorelConfig . paramFlavorMap
@@ -130,6 +122,9 @@ query = do
       grouped = groupMetrics
               ( params ^. paramBorelConfig . allInstances)
               ( params ^. paramMetrics)
+
+  liftIO $ debugM "borel" "start a query"
+
   P.enumerate
     [ (fst result, mkItem sd result)
     | metrics         <- Select $ P.each grouped
@@ -141,33 +136,4 @@ query = do
     ]
   where each' :: Monad m => m [a] -> Producer a m ()
         each' x = lift x >>= P.each
-
-
---------------------------------------------------------------------------------
-
--- | Use Ceilometer to decode and aggregate a stream of raw data points.
---
-ceilometer
-    :: (MonadIO m, Applicative m)
-    => FlavorMap                 -- ^ Instance flavor mapping
-    -> GroupedMetric             -- ^ Requested metrics, this determines how we present the fold result
-    -> Env                       -- ^ Ceilometer arguments
-    -> Producer SimplePoint m () -- ^ Raw points
-    -> m [Result]
-ceilometer flavors metrics cenv raw
-  =   fromMaybe []
-  <$> fmap handleResult
-  <$> decodeFold cenv raw
-  where handleResult :: FoldResult -> [Result]
-        handleResult x = case (x, metrics) of
-          (RSingle  val,  [m]) -> [(m,val)]
-          (RMapNum  vals, [m]) -> [(m, M.foldlWithKey (\a k v -> a + (fromIntegral k * v)) 0 vals)]
-          (RMapText vals,  _)  -> let ms = intersect metrics flavors
-                                  in  map (\(metric, flavor) -> (metric,) $ fromMaybe 0 $ M.lookup flavor vals) ms
-          _                    -> []
-
-        --  Intersect the flavor map and the list of metrics requested. Flatten the result.
-        intersect :: [Metric] -> FlavorMap -> [(Metric, Flavor)]
-        intersect ms = BM.fold (\k1 _ acc -> maybe acc ((:acc) . (,k1))
-                                          $  L.find (== mkInstance k1) ms) []
 

@@ -35,6 +35,7 @@ library
                      Borel.Error
                      Borel.Marquise
                      Borel.Chevalier
+                     Borel.Ceilometer
 
   if flag(network-uri)
      build-depends: network-uri >= 2.6, network >= 2.6
@@ -50,6 +51,7 @@ library
                    , bytestring
                    , cassava
                    , containers >=0.5 && <0.6
+                   , unordered-containers >= 0.2.4
                    , configurator
                    , errors
                    , fast-logger
@@ -105,6 +107,7 @@ test-suite unit
                    , cassava
                    , configurator
                    , containers >=0.5 && <0.6
+                   , unordered-containers >= 0.2.4
                    , errors
                    , fast-logger
                    , http-client

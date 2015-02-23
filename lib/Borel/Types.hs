@@ -47,16 +47,16 @@ module Borel.Types
   , module X
   ) where
 
+import qualified Data.HashMap.Strict as HM
 import           Control.Applicative
 import           Control.Concurrent      (ThreadId)
 import           Control.Error.Util
-import           Control.Lens            (makeLenses)
+import           Control.Lens            (makeLenses, over, mapped, _2)
 import           Control.Monad.Reader
 import           Data.Aeson
 import qualified Data.Bimap              as BM
 import qualified Data.Configurator       as C
 import qualified Data.Configurator.Types as C
-import           Data.Maybe
 import           Data.Monoid
 import           Data.Set                (Set)
 import qualified Data.Set                as S
@@ -66,7 +66,6 @@ import qualified Data.Text.Encoding      as T
 import           Data.Time.Clock
 import           Data.Time.Clock.POSIX
 import qualified Data.Traversable        as T
-import           Data.Word               (Word32)
 import           Network.URI
 import           Pipes
 import           Pipes.Lift
@@ -83,6 +82,8 @@ import           Borel.Types.Result      as X
 import           Borel.Types.UOM         as X
 
 
+import Debug.Trace
+  
 type GroupedMetric = [Metric]
 
 --------------------------------------------------------------------------------
@@ -130,28 +131,37 @@ mkBorelConfig org ctx marq chev fm
 
 parseBorelConfig :: C.Config -> IO (Either BorelError BorelConfig)
 parseBorelConfig raw = do
-  names   <- fromMaybe [] <$> C.lookup raw nameFlavors
-  flavors <- mapM lookupFlavor names
-  context <- Z.context
+  flavors <- enumFlavors raw
+  context <- trace (show flavors) Z.context
 
   liftM5 mkBorelConfig
     <$> (note (ConfigLoad "cannot read list of origins") <$> C.lookup raw nameOrigins)
-    <*> (return (Right context))
+    <*> return (Right context)
     <*> (note (ConfigLoad "cannot read Marquise URI")    <$> C.lookup raw nameMarquise)
     <*> (note (ConfigLoad "cannot read Chevalier URI")   <$> C.lookup raw nameChevalier)
-    <*> (note (ConfigLoad "cannot read flavors")         <$> pure (BM.fromList <$> T.sequenceA flavors))
+    <*> (note (ConfigLoad "cannot read flavors")         <$> (fmap mkFM . T.sequenceA <$> mapM lookupFlavor flavors))
 
   where nameOrigins     = "origins"
         nameMarquise    = "marquise-reader-uri"
         nameChevalier   = "chevalier-uri"
-        nameFlavors     = "instance-flavors"
         nameFlavorGroup = "flavors"
+        nameFlavorName  = ".name"
 
-        lookupFlavor :: C.Name -> IO (Maybe (Text, Word32))
+        lookupFlavor :: C.Name -> IO (Maybe (Text, Text))
         lookupFlavor name
           =   liftA2 (,)
-          <$> C.lookup raw (nameFlavorGroup <> "." <> name <> ".id")
-          <*> C.lookup raw (nameFlavorGroup <> "." <> name <> ".hash")
+          <$> C.lookup raw (nameFlavorGroup <> "." <> name <> "name")
+          <*> C.lookup raw (nameFlavorGroup <> "." <> name <> "id")
+
+        mkFM :: [(Text, Text)] -> FlavorMap
+        mkFM = BM.fromList . over (mapped._2) siphashID
+
+        enumFlavors :: C.Config -> IO [C.Name]
+        enumFlavors conf = do
+          m <- C.getMap conf
+          foldM (\acc x -> maybe acc (:acc) <$> C.lookup raw x) []
+            $ HM.keys
+            $ HM.filterWithKey (\k _ -> nameFlavorName `T.isSuffixOf` k && nameFlavorGroup `T.isPrefixOf` k) m
 
 
 loadBorelConfig :: FilePath -> IO (Either BorelError (BorelConfig, ThreadId))

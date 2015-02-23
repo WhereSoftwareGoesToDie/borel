@@ -31,6 +31,7 @@ import           Vaultaire.Types
 
 import           Borel.Types
 
+import Debug.Trace
 
 -- | Use Chevalier to find origin, address, sourcedict that contains data relevant
 --   to this OpenStack tenancy.
@@ -39,21 +40,21 @@ chevalier :: (MonadIO m, MonadSafe m)
           => (GroupedMetric, TenancyID)
           -> Producer (Origin, Address, SourceDict) (BorelS m) ()
 chevalier (metrics, tid) = do
-  liftIO $ debugM "borel" ("searching chevalier with tenancy="
-                          <> show tid
-                          <> " requested="
-                          <> show (map deserialise metrics))
   params <- lift ask
-  let req = C.buildRequestFromPairs $ chevalierTags
-            (params ^. paramBorelConfig . allInstances)
-            (metrics, tid)
+  let tags = chevalierTags
+             (params ^. paramBorelConfig . allInstances)
+             (metrics, tid)
+  when (null tags) $ return ()
+  liftIO $ debugM "borel" ("searching chevalier with tags=" <> show tags)
+
   P.enumerate
     [ (org, addr, sd)
     | org        <- Select $ P.each (params ^. paramBorelConfig . paramOrigins)
-    , (addr, sd) <- Select $ addressesWith
+    , (addr, sd) <- Select $ searchP
                              (params ^. paramBorelConfig . paramZMQContext)
                              (params ^. paramBorelConfig . paramChevalierURI)
-                             org req
+                             org
+                             (C.buildRequestFromPairs tags)
     ]
 
 chevalierTags :: Set Metric -> (GroupedMetric, TenancyID) -> [(Text, Text)]
@@ -80,19 +81,30 @@ chevalierTags instances (ms, TenancyID tid) = case ms of
         tagEvent    = (keyEvent, valTrue)
         tagPollster = (keyEvent, valFalse)
 
+  
 --------------------------------------------------------------------------------
 
-addressesWith
-  :: (MonadSafe m)
+searchP
+  :: (MonadIO m)
   => Z.Context -> URI
   -> Origin -> C.SourceRequest
   -> Producer (Address, SourceDict) m ()
-addressesWith ctx uri origin request
-  = runChevalier ctx uri
-  $ \conn -> hoist liftIO $ do
+searchP ctx uri org req = do
+  x <- lift $ search ctx uri org req
+  trace ("chev addrs=" ++ show (map fst x)) $ P.each x
+
+-- this doesn't stream because chevalier doesn't
+search
+  :: (MonadIO m)
+  => Z.Context -> URI
+  -> Origin -> C.SourceRequest
+  -> m [(Address, SourceDict)] 
+search ctx uri origin request
+  = liftIO
+  $ runChevalier ctx uri
+  $ \conn -> liftIO $ do
       resp <- liftIO (sendrecv conn)
-      -- this doesn't actually stream because chevalier doesn't
-      each $ either (error . show) (rights . map C.convertSource) (C.decodeResponse resp)
+      return $ either (error . show) (rights . map C.convertSource) (C.decodeResponse resp)
   where sendrecv sock = do
             Z.send sock [Z.SendMore] $ encodeOrigin origin
             Z.send sock []           $ C.encodeRequest request
@@ -102,11 +114,10 @@ addressesWith ctx uri origin request
 type Chevalier = Z.Socket Z.Req
 
 runChevalier
-  :: MonadSafe m
-  => Z.Context -> URI
-  -> (Chevalier -> Proxy a a' b b' m x)
-  -> Proxy a a' b b' m x
+  :: Z.Context -> URI
+  -> (Chevalier -> IO x)
+  -> IO x
 runChevalier ctx (show -> uri) act
-  = P.bracket (liftIO $ Z.socket ctx Z.Req) (liftIO . Z.close) $ \sock ->
-    P.bracket (liftIO $ Z.connect sock uri) (const $ return ())$ \_    ->
+  = Z.withSocket ctx Z.Req $ \sock -> do
+      Z.connect sock uri
       act sock

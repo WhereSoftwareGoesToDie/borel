@@ -15,8 +15,7 @@ import           Borel.Types.UOM
 import Debug.Trace
 
 main :: IO ()
-main = do
-  hspec uomTest
+main = hspec uomTest
 
 uomTest :: Spec
 uomTest = do
@@ -34,11 +33,12 @@ uomTest = do
 
   describe "UOM conversion"  $
     prop  "converts nanosec to sec" $ property $ do
-      uom <- arbitrary
+      uom <- arbitrary :: Gen UOM
       v   <- arbitrary :: Gen Word64
       let lhs = _1 %~ flattenUOM $ nanosecToSec (uom,v)
-          rhs = (traversed . filtered (==nanosec) .~ sec $ (flattenUOM uom), v `div` 1000000000)
+          rhs = (mapped . filtered (==nanosec) .~ sec $ flattenUOM uom, v `div` 1000000000)
       return $ lhs == rhs
+
 
 uom0       = UOM Base Second
 uomResult0 = "s"
@@ -50,21 +50,14 @@ uomResult1 = "instance-ns-GB"
 --------------------------------------------------------------------------------
 
 instance Function UOM          where function = functionShow
-instance Function ResponseItem where function = functionShow
 instance Function Word64       where function = functionShow
 
 instance Arbitrary Prefix  where arbitrary = arbitraryBoundedEnum
 instance Arbitrary BaseUOM where arbitrary = arbitraryBoundedEnum
 instance Arbitrary UOM     where arbitrary = sized someUOMs
-instance Arbitrary ResponseItem where
-  arbitrary = ResponseItem "" "" <$> arbitrary <*> arbitrary
 
 instance CoArbitrary UOM where
   coarbitrary = variant . length . flattenUOM
-
-instance CoArbitrary ResponseItem where
-  coarbitrary (ResponseItem _ _ u v)
-    = variant v
 
 someUOMs :: Int -> Gen UOM
 someUOMs 0 = UOM <$> arbitrary <*> arbitrary

@@ -86,8 +86,8 @@ test-suite unit
 
   build-depends:     base >=4.7 && < 5
                    , lens-properties >= 4.7
-                   , hspec
-                   , QuickCheck
+                   , hspec >= 2.1
+                   , QuickCheck >= 2.7
                    , aeson >= 0.8
                    , attoparsec >= 0.12
                    , bimap >= 0.2

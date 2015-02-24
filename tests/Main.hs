@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns #-}
 import           Control.Applicative
 import           Control.Lens
 import           Control.Lens.Properties
@@ -19,6 +20,15 @@ main = hspec uomTest
 
 uomTest :: Spec
 uomTest = do
+
+  describe "UOM conversion"  $
+    prop  "converts nanosec to sec" $ property $ do
+      uom <- arbitrary :: Gen UOM
+      v   <- arbitrary :: Gen Word64
+      let !lhs = _1 %~ flattenUOM $ nanosecToSec (uom,v)
+      let !rhs = (mapped . filtered (==nanosec) .~ sec $ flattenUOM uom, v `div` 1000000000)
+      return (lhs == rhs)
+
   describe "UOM pretty-printing" $ do
     it "as expected for basic UOMs"
       $ show uom0 `shouldBe` uomResult0
@@ -30,15 +40,6 @@ uomTest = do
       $ (read uomResult0 :: UOM) `shouldBe` uom0
     it "as expected for compound UOMs"
       $ (read uomResult1 :: UOM) `shouldBe` uom1
-
-  describe "UOM conversion"  $
-    prop  "converts nanosec to sec" $ property $ do
-      uom <- arbitrary :: Gen UOM
-      v   <- arbitrary :: Gen Word64
-      let lhs = _1 %~ flattenUOM $ nanosecToSec (uom,v)
-          rhs = (mapped . filtered (==nanosec) .~ sec $ flattenUOM uom, v `div` 1000000000)
-      return $ lhs == rhs
-
 
 uom0       = UOM Base Second
 uomResult0 = "s"
@@ -62,8 +63,8 @@ instance CoArbitrary UOM where
 someUOMs :: Int -> Gen UOM
 someUOMs 0 = UOM <$> arbitrary <*> arbitrary
 someUOMs n = do
-  Positive m <- arbitrary
-  Positive p <- arbitrary
+  Positive m <- arbitrary `suchThat` ((<)n . getPositive)
+  Positive p <- arbitrary `suchThat` ((<)n . getPositive)
   let x = n `div` m
       y = n `div` p
   left  <- someUOMs x

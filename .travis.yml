@@ -10,6 +10,16 @@ before_install:
   - export PATH=/opt/ghc/$GHCVER/bin:$PATH
   - alias cabal=cabal-$CABALVER
   - cabal install hpc-coveralls
+  - sudo apt-get remove libzmq1
+  - wget http://download.zeromq.org/zeromq-4.0.4.tar.gz
+  - tar -xf zeromq-4.0.4.tar.gz
+  - cd zeromq-4.0.4
+  - ./configure
+  - make
+  - sudo make install
+  - sudo su -c "echo '/usr/local/lib' > /etc/ld.so.conf.d/local.conf"
+  - sudo ldconfig
+  - cd ..
 
 install:
   - cabal update

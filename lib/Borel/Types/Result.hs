@@ -20,7 +20,7 @@ module Borel.Types.Result
   , mkItem
 
     -- * Convenient
-  , traverseUOMVal
+  , setUOMVal
   ) where
 
 import           Control.Monad
@@ -72,8 +72,8 @@ mkItem sd (metric, quantity)
 
 -- Some convenient traversals
 
-traverseUOMVal :: Traversal' ResponseItem (UOM, Word64)
-traverseUOMVal f (ResponseItem x y u v)
+setUOMVal :: Simple Setter ResponseItem (UOM,Word64)
+setUOMVal f (ResponseItem x y u v)
   =   ResponseItem x y
   <$> (fst <$> f (u,v))
   <*> (snd <$> f (u,v))

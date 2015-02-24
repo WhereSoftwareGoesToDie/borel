@@ -1,18 +1,22 @@
 {-# LANGUAGE OverloadedStrings #-}
 import           Control.Applicative
+import           Control.Lens
+import           Control.Lens.Properties
+import           Data.Word
 import           Test.Hspec
 import           Test.Hspec.QuickCheck
 import           Test.QuickCheck
 import           Test.QuickCheck.Function
-import Data.Word
 
 import           Borel
-import           Borel.Types.UOM
 import           Borel.Types.Result
-import           Properties
+import           Borel.Types.UOM
+
+import Debug.Trace
 
 main :: IO ()
-main = hspec uomTest
+main = do
+  hspec uomTest
 
 uomTest :: Spec
 uomTest = do
@@ -28,16 +32,19 @@ uomTest = do
     it "as expected for compound UOMs"
       $ (read uomResult1 :: UOM) `shouldBe` uom1
 
+  describe "UOM conversion"  $
+    prop  "converts nanosec to sec" $ property $ do
+      uom <- arbitrary
+      v   <- arbitrary :: Gen Word64
+      let lhs = _1 %~ flattenUOM $ nanosecToSec (uom,v)
+          rhs = (traversed . filtered (==nanosec) .~ sec $ (flattenUOM uom), v `div` 1000000000)
+      return $ lhs == rhs
+
 uom0       = UOM Base Second
 uomResult0 = "s"
 
 uom1       = UOM Base Instance `Times` UOM Nano Second  `Times` UOM Giga Byte
 uomResult1 = "instance-ns-GB"
-
-resultTest :: Spec
-resultTest =
-  describe "Response UOM-value traversal" $
-    prop "is a proper traversal" $ isTraversal traverseUOMVal
 
 
 --------------------------------------------------------------------------------
@@ -57,15 +64,15 @@ instance CoArbitrary UOM where
 
 instance CoArbitrary ResponseItem where
   coarbitrary (ResponseItem _ _ u v)
-    = variant (length $ flattenUOM u)
-    . variant v
-    
+    = variant v
 
 someUOMs :: Int -> Gen UOM
 someUOMs 0 = UOM <$> arbitrary <*> arbitrary
 someUOMs n = do
-  NonNegative m <- arbitrary
-  NonNegative n <- arbitrary
-  left  <- someUOMs m
-  right <- someUOMs n
+  Positive m <- arbitrary
+  Positive p <- arbitrary
+  let x = n `div` m
+      y = n `div` p
+  left  <- someUOMs x
+  right <- someUOMs y
   return (Times left right)

@@ -47,16 +47,18 @@ module Borel.Types
   , module X
   ) where
 
-import qualified Data.HashMap.Strict as HM
 import           Control.Applicative
 import           Control.Concurrent      (ThreadId)
 import           Control.Error.Util
-import           Control.Lens            (makeLenses, over, mapped, _2)
+import           Control.Lens            (makeLenses, mapped, over, _2)
 import           Control.Monad.Reader
 import           Data.Aeson
 import qualified Data.Bimap              as BM
 import qualified Data.Configurator       as C
 import qualified Data.Configurator.Types as C
+import qualified Data.HashMap.Strict     as HM
+import qualified Data.List               as L
+import           Data.Maybe
 import           Data.Monoid
 import           Data.Set                (Set)
 import qualified Data.Set                as S
@@ -82,8 +84,7 @@ import           Borel.Types.Result      as X
 import           Borel.Types.UOM         as X
 
 
-import Debug.Trace
-  
+
 type GroupedMetric = [Metric]
 
 --------------------------------------------------------------------------------
@@ -132,7 +133,7 @@ mkBorelConfig org ctx marq chev fm
 parseBorelConfig :: C.Config -> IO (Either BorelError BorelConfig)
 parseBorelConfig raw = do
   flavors <- enumFlavors raw
-  context <- trace (show flavors) Z.context
+  context <- Z.context
 
   liftM5 mkBorelConfig
     <$> (note (ConfigLoad "cannot read list of origins") <$> C.lookup raw nameOrigins)
@@ -144,24 +145,23 @@ parseBorelConfig raw = do
   where nameOrigins     = "origins"
         nameMarquise    = "marquise-reader-uri"
         nameChevalier   = "chevalier-uri"
-        nameFlavorGroup = "flavors"
-        nameFlavorName  = ".name"
+        nameFlavorGroup = "flavors."
 
         lookupFlavor :: C.Name -> IO (Maybe (Text, Text))
         lookupFlavor name
-          =   liftA2 (,)
-          <$> C.lookup raw (nameFlavorGroup <> "." <> name <> "name")
-          <*> C.lookup raw (nameFlavorGroup <> "." <> name <> "id")
+          =   fmap (name,)
+          <$> C.lookup raw (nameFlavorGroup <> name <> ".id")
 
         mkFM :: [(Text, Text)] -> FlavorMap
         mkFM = BM.fromList . over (mapped._2) siphashID
 
-        enumFlavors :: C.Config -> IO [C.Name]
         enumFlavors conf = do
           m <- C.getMap conf
-          foldM (\acc x -> maybe acc (:acc) <$> C.lookup raw x) []
+          return
+            $ L.nub
+            $ map (T.takeWhile (/= '.') . fromMaybe "" . T.stripPrefix nameFlavorGroup)
             $ HM.keys
-            $ HM.filterWithKey (\k _ -> nameFlavorName `T.isSuffixOf` k && nameFlavorGroup `T.isPrefixOf` k) m
+            $ HM.filterWithKey (\k _ -> nameFlavorGroup `T.isPrefixOf` k) m
 
 
 loadBorelConfig :: FilePath -> IO (Either BorelError (BorelConfig, ThreadId))

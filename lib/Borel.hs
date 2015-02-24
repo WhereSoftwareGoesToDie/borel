@@ -38,7 +38,7 @@ module Borel
   , ResponseItem(..)
   , mkItem
   , respResource, respResourceID, respUOM, respQuantity
-  , traverseUOMVal
+  , setUOMVal
 
     -- * Running
   , run, runF

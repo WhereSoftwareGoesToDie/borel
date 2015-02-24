@@ -1,5 +1,5 @@
 name:                borel-core
-version:             0.16.0.0
+version:             0.16.0
 synopsis:            Metering System for OpenStack metrics provided by Vaultaire.
 description:         Leverages Ceilometer, Chevalier and Marquise to meter OpenStack data.
 homepage:            https://github.com/anchor/borel-core
@@ -43,38 +43,27 @@ library
      build-depends: network-uri < 2.6, network < 2.6
 
   build-depends:     base >=4.7 && <4.8
-                   , aeson
-                   , attoparsec
-                   , binary
-                   , bimap
-                   , blaze-builder
-                   , bytestring
-                   , cassava
+                   , aeson >= 0.8
+                   , attoparsec >= 0.12
+                   , bimap >= 0.2
                    , containers >=0.5 && <0.6
                    , unordered-containers >= 0.2.4
-                   , configurator
-                   , errors
-                   , fast-logger
-                   , http-client
-                   , hslogger
-                   , lens
-                   , monad-logger < 1.0
-                   , mtl
-                   , multiset
-                   , pipes
-                   , pipes-aeson
-                   , pipes-safe
-                   , scotty
-                   , siphash
-                   , text
-                   , time
-                   , transformers
+                   , configurator >= 0.3
+                   , errors >= 1.4
+                   , hslogger >= 1.2
+                   , lens >= 4.7
+                   , mtl >= 2.2
+                   , multiset >= 0.2
+                   , pipes >= 4.1
+                   , pipes-safe >= 2.2
+                   , text >= 1.2
+                   , time >= 1.4
+                   , transformers >= 0.4
                    , zeromq4-haskell >= 0.6.3
                    , ceilometer-common >= 0.1.0
                    , chevalier-common >= 0.4.0
                    , marquise >= 3.2.1
-                   , vaultaire-common
-                   , vaultaire-control
+                   , vaultaire-common >= 2.8.3
                    , vaultaire-query >= 0.5.0.1
 
   ghc-options:       -O2
@@ -97,38 +86,29 @@ test-suite unit
      build-depends: network-uri < 2.6, network < 2.6
 
   build-depends:     base >=4.7 && < 5
+                   , lens-properties >= 4.7
                    , hspec
-                   , aeson
-                   , attoparsec
-                   , binary
-                   , bimap
-                   , blaze-builder
-                   , bytestring
-                   , cassava
-                   , configurator
+                   , QuickCheck
+                   , aeson >= 0.8
+                   , attoparsec >= 0.12
+                   , bimap >= 0.2
                    , containers >=0.5 && <0.6
                    , unordered-containers >= 0.2.4
-                   , errors
-                   , fast-logger
-                   , http-client
-                   , hslogger
-                   , lens
-                   , monad-logger < 1.0
-                   , mtl
-                   , multiset
-                   , pipes
-                   , pipes-aeson
-                   , pipes-safe
-                   , scotty
-                   , siphash
-                   , text
-                   , time
-                   , transformers
+                   , configurator >= 0.3
+                   , errors >= 1.4
+                   , hslogger >= 1.2
+                   , lens >= 4.7
+                   , mtl >= 2.2
+                   , multiset >= 0.2
+                   , pipes >= 4.1
+                   , pipes-safe >= 2.2
+                   , text >= 1.2
+                   , time >= 1.4
+                   , transformers >= 0.4
+                   , zeromq4-haskell >= 0.6.3
                    , ceilometer-common >= 0.1.0
                    , chevalier-common >= 0.4.0
                    , marquise >= 3.2.1
-                   , vaultaire-common
-                   , vaultaire-control
+                   , vaultaire-common >= 2.8.3
                    , vaultaire-query >= 0.5.0.1
-                   , zeromq4-haskell >= 0.6.3
-                   , QuickCheck >= 2.7.6
+

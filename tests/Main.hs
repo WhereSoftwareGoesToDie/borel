@@ -1,6 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
+import Control.Monad
 import           Control.Applicative
+import Data.Monoid
+import qualified Data.Set as S
 import           Control.Lens
 import           Control.Lens.Properties
 import           Data.Word
@@ -8,15 +11,24 @@ import           Test.Hspec
 import           Test.Hspec.QuickCheck
 import           Test.QuickCheck
 import           Test.QuickCheck.Function
+import qualified Data.Bimap              as BM
+import Data.Maybe
+import Data.Either.Combinators
+import Network.URI
+import Data.Configurator
 
+import Vaultaire.Types
 import           Borel
+import           Borel.Types
 import           Borel.Types.Result
 import           Borel.Types.UOM
 
 import Debug.Trace
 
 main :: IO ()
-main = hspec uomTest
+main = do
+  hspec uomTest
+  hspec confTest
 
 uomTest :: Spec
 uomTest = do
@@ -47,6 +59,20 @@ uomResult0 = "s"
 uom1       = UOM Base Instance `Times` UOM Nano Second  `Times` UOM Giga Byte
 uomResult1 = "instance-ns-GB"
 
+confTest :: Spec
+confTest =
+  describe "Configuration parser" $
+    it "parses the sample config" $ do
+      c <- join $ parseBorelConfig <$> load [Required "tests/sample.conf"]
+      c `shouldBe` Right sampleConf
+
+sampleConf :: BorelConfig
+sampleConf = 
+  (mkBorelConfig (S.singleton $ fromRight' $ makeOrigin "ABCDEF")
+                 undefined
+                 (fromJust  $ parseURI   "tcp://example.com:999")
+                 (fromJust  $ parseURI   "tcp://nsa.gov:3333")
+                 (BM.fromList [("asio", 2866838636), ("koolaid", 944337339)]))
 
 --------------------------------------------------------------------------------
 
@@ -70,3 +96,19 @@ someUOMs n = do
   left  <- someUOMs x
   right <- someUOMs y
   return (Times left right)
+
+-- orphan instances for testing only, they don't make sense as actual uses.
+
+instance Show BorelConfig where
+  show (BorelConfig o _ u1 u2 fm ins ms)
+    =   "config:("
+    <> show o                    <> ","
+    <> show u1                   <> ","
+    <> show u2                   <> ","
+    <> show fm                   <> ","
+    <> show ins                  <> ","
+    <> show ms                   <> ","
+    <> ")"
+
+instance Eq BorelConfig where
+  (==) x y = show x == show y

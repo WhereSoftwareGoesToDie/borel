@@ -88,16 +88,16 @@ pBaseUOM = prism' pretty parse
         pretty Hour      = "h"
         pretty Byte      = "B"
         pretty Instance  = "instance"
-        pretty IPAddress = "ip-address"
+        pretty IPAddress = "ip"        
         pretty CPU       = "cpu"
-        pretty VCPU      = "vcpu-allocation"
+        pretty VCPU      = "vcpu"           
         parse "s"               = Just Second
         parse "h"               = Just Hour
         parse "B"               = Just Byte
         parse "instance"        = Just Instance
-        parse "ip-address"      = Just IPAddress
+        parse "ip"              = Just IPAddress
         parse "cpu"             = Just CPU
-        parse "vcpu-allocation" = Just VCPU
+        parse "vcpu"            = Just VCPU
         parse _                 = Nothing
 
 pPrefixUOM :: Prism' Text Prefix
@@ -140,9 +140,9 @@ pUOM = prism' pretty parse
               <|> (preview pBaseUOM <$> AT.string "h")
               <|> (preview pBaseUOM <$> AT.string "B")
               <|> (preview pBaseUOM <$> AT.string "instance")
-              <|> (preview pBaseUOM <$> AT.string "ip-address")
+              <|> (preview pBaseUOM <$> AT.string "ip"      )
               <|> (preview pBaseUOM <$> AT.string "cpu")
-              <|> (preview pBaseUOM <$> AT.string "vcpu-allocation")
+              <|> (preview pBaseUOM <$> AT.string "vcpu")
 
 instance Show BaseUOM where
   show = T.unpack . review pBaseUOM
@@ -168,15 +168,15 @@ instance ToJSON UOM where
 
 nanosecToSec :: (UOM, Word64) -> (UOM, Word64)
 nanosecToSec (u, v)
-  = (mapUOM f u,)
-  $ tryConvert nanosec sec v
+  = let new = mapUOM f u
+    in  (new, tryConvert u new v)
   where f p b | UOM p b == nanosec = sec
               | otherwise          = UOM p b
 
 byteToGigabyte :: (UOM, Word64) -> (UOM, Word64)
 byteToGigabyte (u, v)
-  = (mapUOM f u,)
-  $ tryConvert byte gigabyte v
+  = let new = mapUOM f u
+    in  (new, tryConvert byte gigabyte v)
   where f p b | UOM p b == byte = gigabyte
               | otherwise       = UOM p b
 

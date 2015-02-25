@@ -1,4 +1,4 @@
--- | Copyright 2014-2015 Anchor Systems, Pty Ltd and Others
+-- | Copyright 2013-2015 Anchor Systems, Pty Ltd and Others
 --
 -- The code in this file, and the program it is a part of, is
 -- made available to you by its authors as open source software:
@@ -30,7 +30,6 @@ module Borel.Types.UOM
   , pUOM, pPrefixUOM, pBaseUOM
   , flattenUOM, mapUOM
 
-  , bases, weigh
   ) where
 
 import           Control.Applicative
@@ -215,6 +214,15 @@ instance Weighed BaseUOM where
 instance Weighed UOM where
   weigh (UOM p b)     = weigh p * weigh b
   weigh (a `Times` b) = weigh a * weigh b
+
+data Dimension
+  = CTime
+  | CData
+  | CInstance
+  | CIPAddress
+  | CCPU
+  | CVCPU
+  deriving (Eq, Ord)
 
 dimension :: BaseUOM -> Dimension
 dimension Second    = CTime

@@ -1,4 +1,4 @@
--- | Copyright 2013-2015 Anchor Systems, Pty Ltd and Others
+-- | Copyright 2014-2015 Anchor Systems, Pty Ltd and Others
 --
 -- The code in this file, and the program it is a part of, is
 -- made available to you by its authors as open source software:
@@ -33,14 +33,14 @@ module Borel.Types.UOM
   , bases, weigh
   ) where
 
-import Data.Maybe
 import           Control.Applicative
 import           Control.Error.Util
-import           Control.Lens         (Prism', preview, prism', re,
-                                       review, (^.), (^?))
+import           Control.Lens         (Prism', preview, prism', re, review,
+                                       (^.), (^?))
 import           Control.Monad
 import           Data.Aeson
 import qualified Data.Attoparsec.Text as AT
+import           Data.Maybe
 import           Data.Monoid
 import           Data.MultiSet        (MultiSet)
 import qualified Data.MultiSet        as S
@@ -91,24 +91,15 @@ data BaseUOM
   | VCPU
   deriving (Eq, Ord, Enum, Bounded)
 
-data ComparisonBase
-  = CTime
-  | CData
-  | CInstance
-  | CIPAddress
-  | CCPU
-  | CVCPU
-  deriving (Eq, Ord)
-
 pBaseUOM :: Prism' Text BaseUOM
 pBaseUOM = prism' pretty parse
   where pretty Second    = "s"
         pretty Hour      = "h"
         pretty Byte      = "B"
         pretty Instance  = "instance"
-        pretty IPAddress = "ip"        
+        pretty IPAddress = "ip"
         pretty CPU       = "cpu"
-        pretty VCPU      = "vcpu"           
+        pretty VCPU      = "vcpu"
         parse "s"               = Just Second
         parse "h"               = Just Hour
         parse "B"               = Just Byte
@@ -207,15 +198,6 @@ flattenUOM :: UOM -> [UOM]
 flattenUOM x@(UOM _ _)   = [x]
 flattenUOM   (Times x y) = flattenUOM x ++ flattenUOM y
 
-reduce :: BaseUOM -> ComparisonBase
-reduce Second    = CTime
-reduce Hour      = CTime
-reduce Byte      = CData
-reduce Instance  = CInstance
-reduce IPAddress = CIPAddress
-reduce CPU       = CCPU
-reduce VCPU      = CVCPU
-
 class Weighed a where
   weigh :: a -> Double
 
@@ -234,13 +216,22 @@ instance Weighed UOM where
   weigh (UOM p b)     = weigh p * weigh b
   weigh (a `Times` b) = weigh a * weigh b
 
-bases :: UOM -> MultiSet ComparisonBase
-bases (UOM _ b)     = S.singleton $ reduce b
-bases (a `Times` b) = bases a <> bases b
+dimension :: BaseUOM -> Dimension
+dimension Second    = CTime
+dimension Hour      = CTime
+dimension Byte      = CData
+dimension Instance  = CInstance
+dimension IPAddress = CIPAddress
+dimension CPU       = CCPU
+dimension VCPU      = CVCPU
+
+dimensions :: UOM -> MultiSet Dimension
+dimensions (UOM _ b)     = S.singleton $ dimension b
+dimensions (a `Times` b) = dimensions a <> dimensions b
 
 convert :: UOM -> UOM -> Maybe (Word64 -> Word64)
 convert old new
-  | bases old == bases new
+  | dimensions old == dimensions new
   = let factor = weigh old / weigh new
     in  Just (floor . (*) (toRational factor) . toRational)
   | otherwise = Nothing

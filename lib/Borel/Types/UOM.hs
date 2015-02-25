@@ -20,12 +20,17 @@ module Borel.Types.UOM
 
     -- * Convenient constructors
   , sec, nanosec, byte, megabyte, gigabyte
+  , countCPU, countVCPU, countInstance, countIP
+
+    -- * Conversions
+  , convert, tryConvert
+  , nanosecToSec, byteToGigabyte
 
     -- * Utilities
   , pUOM, pPrefixUOM, pBaseUOM
-  , convert
-  , flattenUOM
-  , nanosecToSec, byteToGigabyte
+  , flattenUOM, mapUOM
+
+  , bases, weigh
   ) where
 
 import Data.Maybe
@@ -43,13 +48,26 @@ import           Data.Text            (Text)
 import qualified Data.Text            as T
 import           Data.Word
 
-nanosec  = UOM Nano Second
-sec      = UOM Base Second
-byte     = UOM Base Byte
-megabyte = UOM Mega Byte
-gigabyte = UOM Giga Byte
 
--- | Unit of measurement. Basically a monomorphic tree.
+--------------------------------------------------------------------------------
+
+-- * Our UOM parser is only total for UOMs made up of
+--   these components. This is because the format we need
+--   to work with is restrictive.
+
+countCPU      = UOM Base CPU
+countVCPU     = UOM Base VCPU
+countInstance = UOM Base Instance
+countIP       = UOM Base IPAddress
+nanosec       = UOM Nano Second
+sec           = UOM Base Second
+byte          = UOM Base Byte
+megabyte      = UOM Mega Byte
+gigabyte      = UOM Giga Byte
+
+
+--------------------------------------------------------------------------------
+
 data UOM
   = UOM Prefix BaseUOM
   | Times UOM UOM
@@ -164,7 +182,7 @@ instance ToJSON UOM where
   toJSON x = String $ x ^. re pUOM
 
 
--- Convenient conversions
+--------------------------------------------------------------------------------
 
 nanosecToSec :: (UOM, Word64) -> (UOM, Word64)
 nanosecToSec (u, v)
@@ -180,8 +198,7 @@ byteToGigabyte (u, v)
   where f p b | UOM p b == byte = gigabyte
               | otherwise       = UOM p b
 
-
--- | UOM is a non-generic "functor"
+-- Not a functor.
 mapUOM :: (Prefix -> BaseUOM -> UOM) -> UOM -> UOM
 mapUOM f (UOM p b)   = f p b
 mapUOM f (Times x y) = Times (mapUOM f x) (mapUOM f y)
@@ -189,8 +206,6 @@ mapUOM f (Times x y) = Times (mapUOM f x) (mapUOM f y)
 flattenUOM :: UOM -> [UOM]
 flattenUOM x@(UOM _ _)   = [x]
 flattenUOM   (Times x y) = flattenUOM x ++ flattenUOM y
-
--- the following is copied from old borel code
 
 reduce :: BaseUOM -> ComparisonBase
 reduce Second    = CTime
@@ -223,13 +238,13 @@ bases :: UOM -> MultiSet ComparisonBase
 bases (UOM _ b)     = S.singleton $ reduce b
 bases (a `Times` b) = bases a <> bases b
 
-convert :: UOM -> UOM -> Word64 -> Maybe Word64
-convert old new v
+convert :: UOM -> UOM -> Maybe (Word64 -> Word64)
+convert old new
   | bases old == bases new
   = let factor = weigh old / weigh new
-    in  Just $ floor $ toRational factor * toRational v
+    in  Just (floor . (*) (toRational factor) . toRational)
   | otherwise = Nothing
 
 tryConvert :: UOM -> UOM -> Word64 -> Word64
-tryConvert old new v = fromMaybe v $ convert old new v
+tryConvert old new = fromMaybe id $ convert old new
 

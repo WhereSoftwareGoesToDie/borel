@@ -20,6 +20,7 @@ module Borel
     -- * Unit of measurement
   , UOM(..), BaseUOM(..), Prefix(..)
   , nanosec, byte, megabyte, gigabyte
+  , countCPU, countVCPU, countInstance, countIP
   , convert
   , nanosecToSec, byteToGigabyte
 

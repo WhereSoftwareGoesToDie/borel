@@ -19,6 +19,7 @@ import           Test.Hspec
 import           Test.Hspec.QuickCheck
 import           Test.QuickCheck
 import           Test.QuickCheck.Function
+import qualified Data.Aeson as A
 
 import           Borel
 import           Borel.Types
@@ -63,9 +64,14 @@ confTest =
 
 
 respTest :: Spec
-respTest =
-  describe "Response Item " $
+respTest = do
+  describe "Response Item" $
     it "has a valid Setter for (UOM, Value)" $ isSetter setUOMVal
+
+  describe "Response Item JSON" $
+    prop "x == decode (encode x)" $ property $ do
+      x <- arbitrary :: Gen ResponseItem
+      return $ Just x == A.decode (A.encode x)
 
 --------------------------------------------------------------------------------
 

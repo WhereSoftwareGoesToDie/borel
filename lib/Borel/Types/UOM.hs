@@ -184,7 +184,7 @@ nanosecToSec (u, v)
 byteToGigabyte :: (UOM, Word64) -> (UOM, Word64)
 byteToGigabyte (u, v)
   = let new = mapUOM f u
-    in  (new, tryConvert byte gigabyte v)
+    in  (new, tryConvert byte new v)
   where f p b | UOM p b == byte = gigabyte
               | otherwise       = UOM p b
 

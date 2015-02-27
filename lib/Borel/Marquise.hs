@@ -16,24 +16,24 @@ module Borel.Marquise
 
 where
 
-import           Control.Monad
 import           Control.Lens
+import           Control.Monad
 import           Data.Monoid
 import           Network.URI
-import           Pipes.Safe
-
 import           Pipes
-
-import qualified Pipes.Safe                 as P
+import           Pipes.Safe        as P
 import           System.Log.Logger
-import qualified System.ZMQ4                as Z
+import qualified System.ZMQ4       as Z
 
 -- friends
-import qualified Marquise.Client            as M
+import qualified Marquise.Client   as M
 import           Vaultaire.Types
 
 -- family
 import           Borel.Types
+
+
+import qualified Pipes.Prelude as P
 
 -- | Use Marquise to fetch raw data points.
 --
@@ -87,4 +87,4 @@ runMarquiseReader
 runMarquiseReader ctx (show -> uri) f
   = P.bracket (liftIO $ Z.socket ctx Z.Dealer) (liftIO . Z.close) $ \sock ->
     P.bracket (liftIO $ Z.connect sock uri)    (const $ return ())$ \_    ->
-      f (M.SocketState sock uri) 
+      f (M.SocketState sock uri)

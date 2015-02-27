@@ -31,7 +31,6 @@ import           Vaultaire.Types
 
 import           Borel.Types
 
-import Debug.Trace
 
 -- | Use Chevalier to find origin, address, sourcedict that contains data relevant
 --   to this OpenStack tenancy.
@@ -91,7 +90,8 @@ searchP
   -> Producer (Address, SourceDict) m ()
 searchP ctx uri org req = do
   x <- lift $ search ctx uri org req
-  trace ("chev addrs=" ++ show (map fst x)) $ P.each x
+  liftIO $ debugM "borel" ("addresses=" <> show (map fst x))
+  P.each x
 
 -- this doesn't stream because chevalier doesn't
 search

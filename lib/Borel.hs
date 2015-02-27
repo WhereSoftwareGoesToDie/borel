@@ -124,8 +124,6 @@ query = do
               ( params ^. paramBorelConfig . allInstances)
               ( params ^. paramMetrics)
 
-  liftIO $ debugM "borel" "start a query"
-
   P.enumerate
     [ (fst result, mkItem sd result)
     | metrics         <- Select $ P.each grouped

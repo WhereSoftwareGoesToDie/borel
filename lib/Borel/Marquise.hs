@@ -33,8 +33,6 @@ import           Vaultaire.Types
 import           Borel.Types
 
 
-import qualified Pipes.Prelude as P
-
 -- | Use Marquise to fetch raw data points.
 --
 marquise :: (MonadIO m, MonadSafe m)

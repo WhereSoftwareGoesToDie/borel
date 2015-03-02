@@ -1,17 +1,17 @@
-{-# LANGUAGE BangPatterns      #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 import           Control.Applicative
 import           Control.Lens             hiding (elements)
 import           Control.Lens.Properties
 import           Control.Monad
+import qualified Data.Aeson               as A
 import qualified Data.Bimap               as BM
 import           Data.Configurator
 import           Data.Either.Combinators
+import qualified Data.List                as L
 import           Data.Maybe
 import           Data.Monoid
 import qualified Data.Set                 as S
-import qualified Data.List                as L
 import qualified Data.Text                as T
 import           Data.Word
 import           Network.URI
@@ -19,7 +19,6 @@ import           Test.Hspec
 import           Test.Hspec.QuickCheck
 import           Test.QuickCheck
 import           Test.QuickCheck.Function
-import qualified Data.Aeson as A
 
 import           Borel
 import           Borel.Types
@@ -42,7 +41,7 @@ uomTest = do
     prop  "converts nanosec to sec" $ property $ do
       uom <- uomNoNanosec
       return $ trace ("uom=" ++ show uom ) $ nanosecToSec (uom `Times` nanosec, 1000000000) == (uom `Times` sec, 1)
- 
+
   describe "UOM pretty-printing" $ do
     it "as expected for basic UOMs"
       $ show uom0 `shouldBe` uomResult0
@@ -66,7 +65,7 @@ confTest =
 respTest :: Spec
 respTest = do
   describe "Response Item" $
-    it "has a valid Setter for (UOM, Value)" $ isSetter setUOMVal
+    it "has a valid lens for (UOM, Value)" $ isLens uomVal
 
   describe "Response Item JSON" $
     prop "x == decode (encode x)" $ property $ do
@@ -100,14 +99,13 @@ instance Arbitrary BaseUOM where arbitrary = arbitraryBoundedEnum
 instance Arbitrary UOM     where arbitrary = sized someUOMs
 instance Arbitrary ResponseItem where
   arbitrary =   ResponseItem "" ""
-            <$> arbitrary
-            <*> arbitrary
+            <$> ((,) <$> arbitrary <*> arbitrary)
 
 instance CoArbitrary UOM where
   coarbitrary = variant . length . flattenUOM
 
 instance CoArbitrary ResponseItem where
-  coarbitrary (ResponseItem _ _ u v)
+  coarbitrary (ResponseItem _ _ (u,v))
     = variant (length $ flattenUOM u)
     . variant v
 

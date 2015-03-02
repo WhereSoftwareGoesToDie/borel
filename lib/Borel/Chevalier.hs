@@ -80,7 +80,7 @@ chevalierTags instances (ms, TenancyID tid) = case ms of
         tagEvent    = (keyEvent, valTrue)
         tagPollster = (keyEvent, valFalse)
 
-  
+
 --------------------------------------------------------------------------------
 
 searchP
@@ -98,7 +98,7 @@ search
   :: (MonadIO m)
   => Z.Context -> URI
   -> Origin -> C.SourceRequest
-  -> m [(Address, SourceDict)] 
+  -> m [(Address, SourceDict)]
 search ctx uri origin request
   = liftIO
   $ runChevalier ctx uri

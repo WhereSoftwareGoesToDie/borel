@@ -15,19 +15,21 @@ module Borel.Types.Result
   ( -- * Query results
     Result
   , ResponseItem(..)
-  , respResource, respResourceID
-  , respUOM, respQuantity                  
+  , respResource, respResourceID, respVal
   , mkItem
 
     -- * Convenient
-  , setUOMVal
+  , uomVal
   ) where
 
-import           Control.Monad
 import           Control.Applicative
 import           Control.Lens        hiding ((.=))
+import           Control.Monad
 import           Data.Aeson          hiding (Result)
+import           Data.Csv            (FromRecord, ToRecord, parseRecord, record,
+                                      toField, toRecord, (.!))
 import           Data.Text           (Text)
+import qualified Data.Vector         as V
 import           Data.Word
 
 import           Ceilometer.Tags
@@ -38,12 +40,12 @@ import           Borel.Types.Metric
 import           Borel.Types.UOM
 
 type Result = (Metric, Word64)
+type Val    = (UOM, Word64)
 
 data ResponseItem = ResponseItem
   { _respResource   :: Text
   , _respResourceID :: Text
-  , _respUOM        :: UOM
-  , _respQuantity   :: Word64 }
+  , _respVal        :: Val }
   deriving (Eq, Show, Read)
 
 makeLenses ''ResponseItem
@@ -51,29 +53,44 @@ makeLenses ''ResponseItem
 instance FromJSON ResponseItem where
   parseJSON (Object x)
     =   ResponseItem
-    <$> x .: "resource"
-    <*> x .: "resource-id"
-    <*> x .: "uom"
-    <*> x .: "quantity"
+    <$>          x .: "resource"
+    <*>          x .: "resource-id"
+    <*> ((,) <$> x .: "uom"
+             <*> x .: "quantity")
   parseJSON _ = mzero
 
 instance ToJSON ResponseItem where
-  toJSON (ResponseItem n i u x)
+  toJSON (ResponseItem n i (u,x))
     = object [ "resource"    .= n
              , "resource-id" .= i
              , "uom"         .= u
              , "quantity"    .= x ]
 
+instance FromRecord ResponseItem where
+  parseRecord v
+    | V.length v == 4 = ResponseItem
+                     <$>          v .! 0
+                     <*>          v .! 1
+                     <*> ((,) <$> v .! 2
+                              <*> v .! 3)
+
+    | otherwise = mzero
+
+instance ToRecord ResponseItem where
+  toRecord (ResponseItem n i (u,v))
+    = record [ toField n
+             , toField i
+             , toField u
+             , toField v ]
+
 mkItem :: SourceDict -> Result -> ResponseItem
 mkItem sd (metric, quantity)
   = let name = pretty metric
         uid  = stopBorelError $ lookupSD keyResourceID sd
-    in  ResponseItem name uid (uom metric) quantity
+    in  ResponseItem name uid (uom metric, quantity)
 
 -- Some convenient traversals
 
-setUOMVal :: Simple Setter ResponseItem (UOM,Word64)
-setUOMVal f (ResponseItem x y u v)
-  =   ResponseItem x y
-  <$> (fst <$> f (u,v))
-  <*> (snd <$> f (u,v))
+uomVal :: Lens' ResponseItem Val
+uomVal f (ResponseItem x y v)
+  =   ResponseItem x y <$> f v

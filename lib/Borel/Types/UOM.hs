@@ -39,12 +39,14 @@ import           Control.Lens         (Prism', preview, prism', re, review,
 import           Control.Monad
 import           Data.Aeson
 import qualified Data.Attoparsec.Text as AT
+import           Data.Csv             (FromField, ToField, parseField, toField)
 import           Data.Maybe
 import           Data.Monoid
 import           Data.MultiSet        (MultiSet)
 import qualified Data.MultiSet        as S
 import           Data.Text            (Text)
 import qualified Data.Text            as T
+import qualified Data.Text.Encoding   as E
 import           Data.Word
 
 
@@ -171,6 +173,11 @@ instance FromJSON UOM where
 instance ToJSON UOM where
   toJSON x = String $ x ^. re pUOM
 
+instance FromField UOM where
+  parseField (E.decodeUtf8 -> t) = maybe mzero return $ t ^? pUOM
+
+instance ToField UOM where
+  toField x = E.encodeUtf8 $ x ^. re pUOM
 
 --------------------------------------------------------------------------------
 

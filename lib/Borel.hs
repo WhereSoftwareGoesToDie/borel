@@ -38,8 +38,8 @@ module Borel
     -- * Query results
   , ResponseItem(..)
   , mkItem
-  , respResource, respResourceID, respUOM, respQuantity
-  , setUOMVal
+  , respResource, respResourceID, respVal
+  , uomVal
 
     -- * Running
   , run, runF

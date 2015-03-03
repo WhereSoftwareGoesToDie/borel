@@ -130,9 +130,10 @@ query = do
     , (org, addr, sd) <- Select $ chevalier (metrics, params ^. paramTID)
     , result          <- Select $ each' $ ceilometer
                          flavors metrics
-                         (Env flavors sd start end)
+                         (Env flavors sd defaultFilters start end)
                          (marquise params (metrics, org, addr))
     ]
   where each' :: Monad m => m [a] -> Producer a m ()
         each' x = lift x >>= P.each
+        defaultFilters = Filters billableStatus
 

@@ -1,7 +1,9 @@
 {-# LANGUAGE TupleSections #-}
 
 module Borel.Ceilometer
-     ( ceilometer )
+     ( ceilometer
+     , module Borel.Ceilometer.Instance
+     )
 where
 
 import           Control.Applicative
@@ -18,6 +20,7 @@ import           System.Log.Logger
 import           Ceilometer.Client
 import           Vaultaire.Types
 
+import           Borel.Ceilometer.Instance
 import           Borel.Types
 
 
@@ -32,7 +35,7 @@ ceilometer
     -> Env                       -- ^ Ceilometer arguments
     -> Producer SimplePoint m () -- ^ Raw points
     -> m [Result]
-ceilometer flavors metrics cenv@(Env _ sd _ _) raw = do
+ceilometer flavors metrics cenv@(Env _ sd _ _ _) raw = do
   liftIO $ debugM "borel" ("using ceilometer to decode data with " <> show sd)
   fromMaybe [] <$> fmap handleResult <$> decodeFold cenv raw
 
@@ -42,8 +45,8 @@ ceilometer flavors metrics cenv@(Env _ sd _ _) raw = do
           (RMapNum32 vals, [m]) -> [(m, M.foldlWithKey (\a k v -> a + (fromIntegral k * v)) 0 vals)]
           (RMapNum64 vals, [m]) -> [(m, M.foldlWithKey (\a k v -> a + (fromIntegral k * v)) 0 vals)]
           (RMapText  vals,  _)  -> let ms = intersect metrics flavors
-                                  in  map (\(metric, flavor) -> (metric,) $ fromMaybe 0 $ M.lookup flavor vals) ms
-          _                    -> []
+                                   in  map (\(metric, flavor) -> (metric,) $ fromMaybe 0 $ M.lookup flavor vals) ms
+          _                     -> []
 
         --  Intersect the flavor map and the list of metrics requested. Flatten the result.
         intersect :: [Metric] -> FlavorMap -> [(Metric, Flavor)]

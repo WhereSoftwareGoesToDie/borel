@@ -39,7 +39,7 @@ data Metric = Metric
 
 mkInstance :: Flavor -> Metric
 mkInstance name = Metric
-  { deserialise      = "instances/" <> name
+  { deserialise      = "instances-" <> name
   , pretty           = "instance-"  <> name <> "-allocation"
   , uom              = countInstance `Times` nanosec
   }
@@ -63,13 +63,13 @@ diskWrites           = Metric
   }
 
 neutronIn            = Metric
-  { deserialise      = "neutron-traffic/incoming"
+  { deserialise      = "neutron-traffic-incoming"
   , pretty           = "neutron-data-rx"
   , uom              = byte
   }
 
 neutronOut           = Metric
-  { deserialise      = "neutron-traffic/outgoing"
+  { deserialise      = "neutron-traffic-outgoing"
   , pretty           = "neutron-data-tx"
   , uom              = byte
   }

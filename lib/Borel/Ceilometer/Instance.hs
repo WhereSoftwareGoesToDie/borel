@@ -23,4 +23,4 @@ billableStatus InstanceRevertResize     = True
 billableStatus InstancePaused           = False
 billableStatus InstanceSuspended        = False
 billableStatus InstanceRescue           = False
-billableStatus InstanceMigrating        = False
+billableStatus InstanceMigrating        = True

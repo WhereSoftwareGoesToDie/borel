@@ -22,7 +22,7 @@ module Borel
   , nanosec, byte, megabyte, gigabyte
   , countCPU, countVCPU, countInstance, countIP
   , convert
-  , nanosecToSec, byteToGigabyte
+  , nanosecToSec, nanosecToHour, byteToGigabyte
 
     -- * BorelConfig
   , BorelConfig(..)

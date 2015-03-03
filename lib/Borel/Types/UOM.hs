@@ -24,7 +24,7 @@ module Borel.Types.UOM
 
     -- * Conversions
   , convert, tryConvert
-  , nanosecToSec, byteToGigabyte
+  , nanosecToSec, byteToGigabyte, nanosecToHour
 
     -- * Utilities
   , pUOM, pPrefixUOM, pBaseUOM
@@ -65,6 +65,7 @@ sec           = UOM Base Second
 byte          = UOM Base Byte
 megabyte      = UOM Mega Byte
 gigabyte      = UOM Giga Byte
+hour          = UOM Base Hour
 
 
 --------------------------------------------------------------------------------
@@ -182,18 +183,25 @@ instance ToField UOM where
 --------------------------------------------------------------------------------
 
 nanosecToSec :: (UOM, Word64) -> (UOM, Word64)
-nanosecToSec (u, v)
-  = let new = mapUOM f u
-    in  (new, tryConvert u new v)
+nanosecToSec (old, v)
+  = let new = mapUOM f old
+    in  (new, tryConvert old new v)
   where f p b | UOM p b == nanosec = sec
               | otherwise          = UOM p b
 
 byteToGigabyte :: (UOM, Word64) -> (UOM, Word64)
-byteToGigabyte (u, v)
-  = let new = mapUOM f u
-    in  (new, tryConvert byte new v)
+byteToGigabyte (old, v)
+  = let new = mapUOM f old
+    in  (new, tryConvert old new v)
   where f p b | UOM p b == byte = gigabyte
               | otherwise       = UOM p b
+
+nanosecToHour :: (UOM, Word64) -> (UOM, Word64)
+nanosecToHour (old,v)
+  = let new = mapUOM f old
+    in  (new, tryConvert old new v)
+  where f p b | UOM p b == nanosec = hour
+              | otherwise = UOM p b
 
 -- Not a functor.
 mapUOM :: (Prefix -> BaseUOM -> UOM) -> UOM -> UOM

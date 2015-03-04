@@ -13,7 +13,7 @@
 module Borel
   ( -- * Metric
     Metric(..)
-  , cpu, volumes, diskReads, diskWrites, neutronIn, neutronOut
+  , cpu, block, ssd, diskReads, diskWrites, neutronIn, neutronOut
   , ipv4, vcpus, memory, snapshot, image
   , mkInstance
 

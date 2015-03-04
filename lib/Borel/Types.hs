@@ -124,7 +124,7 @@ mkBorelConfig org ctx marq chev fm
         ms = fs <>
           [ diskReads, diskWrites
           , neutronIn, neutronOut
-          , cpu, vcpus, memory, ipv4, volumes
+          , cpu, vcpus, memory, ipv4, block, ssd
           , snapshot, image
           ]
         fs :: [Metric]

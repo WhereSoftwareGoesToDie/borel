@@ -19,7 +19,7 @@
 module Borel.Types.Metric
   ( -- * Metric
     Metric(..)
-  , cpu, volumes, diskReads, diskWrites, neutronIn, neutronOut
+  , cpu, block, ssd, diskReads, diskWrites, neutronIn, neutronOut
   , ipv4, vcpus, memory, snapshot, image
   , mkInstance
   ) where
@@ -80,9 +80,15 @@ ipv4                 = Metric
   , uom              = countIP `Times` nanosec
   }
 
-volumes              = Metric
-  { deserialise      = "volumes"
-  , pretty           = "volume-allocation"
+block                = Metric
+  { deserialise      = "volumes-block"
+  , pretty           = "volume-block-allocation"
+  , uom              = gigabyte `Times` nanosec
+  }
+
+ssd                  = Metric
+  { deserialise      = "volumes-fast"
+  , pretty           = "volume-fast-allocation"
   , uom              = gigabyte `Times` nanosec
   }
 

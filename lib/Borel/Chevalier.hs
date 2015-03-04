@@ -80,6 +80,8 @@ chevalierTags instances (ms, TenancyID tid) = case ms of
         tagName     = (keyMetricName,)
         tagEvent    = (keyEvent, valTrue)
         tagPollster = (keyEvent, valFalse)
+        tagBlock    = (keyVolumeType, valVolumeBlock)
+        tagFast     = (keyVolumeType, valVolumeFast)
 
 
 --------------------------------------------------------------------------------

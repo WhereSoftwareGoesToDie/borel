@@ -47,7 +47,8 @@ marquise params (metrics, origin, addr) = do
 
   case metrics of
       [metric] -> if
-        | metric == volumes  -> events
+        | metric == block    -> events
+        | metric == ssd      -> events
         | metric == ipv4     -> events
         | metric == snapshot -> events
         | otherwise          -> points

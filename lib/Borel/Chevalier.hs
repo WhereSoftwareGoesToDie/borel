@@ -61,7 +61,8 @@ chevalierTags instances (ms, TenancyID tid) = case ms of
   []       -> []
   [metric] -> if
     | metric == cpu        -> [tagID tid , tagName "cpu"                                  ]
-    | metric == volumes    -> [tagID tid , tagName "volume.size"            , tagEvent    ]
+    | metric == block      -> [tagID tid , tagName "volume.size", tagBlock  , tagEvent    ]
+    | metric == ssd        -> [tagID tid , tagName "volume.size", tagFast   , tagEvent    ]
     | metric == diskReads  -> [tagID tid , tagName "disk.read.bytes"                      ]
     | metric == diskWrites -> [tagID tid , tagName "disk.write.bytes"                     ]
     | metric == neutronIn  -> [tagID tid , tagName "network.incoming.bytes"               ]

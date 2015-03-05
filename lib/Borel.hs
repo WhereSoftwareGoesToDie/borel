@@ -48,7 +48,6 @@ module Borel
   ) where
 
 import           Control.Applicative
-import           Control.Arrow
 import           Control.Lens
 import           Control.Monad.Reader
 import           Data.Set             (Set)
@@ -81,10 +80,13 @@ groupMetrics :: Set Metric        -- ^ All available instances
              -> Set Metric        -- ^ Metrics to be grouped
              -> Set GroupedMetric
 groupMetrics instances metrics
-  =  let (allfs, nonfs) = (S.toList *** S.map pure) $ S.partition (`S.member` instances) metrics
-     in case allfs of
-       [] -> nonfs
-       xs -> S.insert xs nonfs
+  =  if S.null metrics then
+        S.singleton [] --Empty set of resources -> empty list of resources -> all resources query
+     else
+        let (allfs, nonfs) = bimap S.toList (S.map pure) $ S.partition (`S.member` instances) metrics
+        in case allfs of
+            [] -> nonfs
+            xs -> S.insert xs nonfs
 
 
 --------------------------------------------------------------------------------

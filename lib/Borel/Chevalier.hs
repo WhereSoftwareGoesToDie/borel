@@ -56,9 +56,11 @@ chevalier (metrics, tid) = do
                              (C.buildRequestFromPairs tags)
     ]
 
+-- | Converts a GroupedMetric and a TenancyID into a list of cheavlier tags
+--   Also requires a set of the currently configured instance flavors
 chevalierTags :: Set Metric -> (GroupedMetric, TenancyID) -> [(Text, Text)]
 chevalierTags instances (ms, TenancyID tid) = case ms of
-  []       -> []
+  []       -> [tagID tid] --Query for all resources
   [metric] -> if
     | metric == cpu        -> [tagID tid , tagName "cpu"                                  ]
     | metric == block      -> [tagID tid , tagName "volume.size", tagBlock  , tagEvent    ]

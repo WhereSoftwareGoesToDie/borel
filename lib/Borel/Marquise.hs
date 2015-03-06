@@ -68,8 +68,8 @@ rangeData ctx uri origin addr start end
   = runMarquiseReader ctx uri
   $ \conn -> hoist liftIO
            $ void $ M.catchMarquiseAll
-             (M.readSimplePoints M.NoRetry addr start end origin conn)
-             (lift . lift . errorM "borel" . show)
+             (M.readSimplePoints (M.JustRetry 10) addr start end origin conn)
+             (fail . show)
 
 
 --------------------------------------------------------------------------------

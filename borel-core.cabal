@@ -45,6 +45,7 @@ library
 
   build-depends:     base >=4.7 && <4.8
                    , aeson >= 0.8
+                   , async
                    , attoparsec >= 0.12
                    , bimap >= 0.2
                    , cassava >= 0.4
@@ -57,6 +58,7 @@ library
                    , mtl >= 2.1
                    , multiset >= 0.2
                    , pipes >= 4.1
+                   , pipes-concurrency >=2.0
                    , pipes-safe >= 2.2
                    , text >= 1.2
                    , time >= 1.4

@@ -153,17 +153,21 @@ query = do
               (marquise params (metrics, org, addr))
         forM_ results $ \result -> yield (fst result, mkItem sd result)
 
-  workers <- liftIO . async $ (do
+  -- This hierarchy is necessary to close the buffers in case of an error.
+  pollWorkers <- liftIO . async $ (do
     workers <- replicateM 8 . async . runSafeT . runEffect $
                  fromInput inputWork >-> worker >-> toOutput outputRes
     mapM_ link workers
     mapM_ wait workers) `E.finally` (atomically $ sealWork >> sealRes)
-  liftIO $ link workers
+  liftIO $ link pollWorkers
 
-  void . liftIO . replicateM 1 . forkIO $ do
-    runSafeT . runEffect $ producer >-> toOutput outputWork
-    atomically sealWork
+  pollProducer <- liftIO . async $
+    (runSafeT . runEffect $ producer >-> toOutput outputWork)
+      `E.finally` atomically sealWork
+  liftIO $ link pollProducer
 
   fromInput inputRes
+
+  liftIO $ wait pollProducer
   liftIO . atomically $ sealRes
-  liftIO $ wait workers
+  liftIO $ wait pollWorkers

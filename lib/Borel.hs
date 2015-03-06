@@ -122,8 +122,8 @@ query = do
   liftIO $ updateGlobalLogger "borel" (setLevel DEBUG)
 
   params <- ask
-  (outputWork, inputWork, sealWork) <- liftIO . spawn' $ unbounded
-  (outputRes, inputRes, sealRes) <- liftIO . spawn' $ unbounded
+  (outputWork, inputWork, sealWork) <- liftIO . spawn' $ bounded 1
+  (outputRes, inputRes, sealRes) <- liftIO . spawn' $ bounded 1
   let grouped = groupMetrics
               ( params ^. paramBorelConfig . allInstances)
               ( params ^. paramMetrics)

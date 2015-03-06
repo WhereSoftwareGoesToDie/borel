@@ -49,6 +49,7 @@ module Borel
 
 import           Control.Applicative
 import           Control.Concurrent.Async
+import qualified Control.Exception    as E
 import           Control.Lens
 import           Control.Monad.Reader
 import           Data.Set             (Set)
@@ -152,13 +153,11 @@ query = do
               (marquise params (metrics, org, addr))
         forM_ results $ \result -> yield (fst result, mkItem sd result)
 
-  workers <- liftIO . async $ do
+  workers <- liftIO . async $ (do
     workers <- replicateM 8 . async . runSafeT . runEffect $
                  fromInput inputWork >-> worker >-> toOutput outputRes
     mapM_ link workers
-    mapM_ wait workers
-    atomically sealWork
-    atomically sealRes
+    mapM_ wait workers) `E.finally` (atomically $ sealWork >> sealRes)
   liftIO $ link workers
 
   void . liftIO . replicateM 1 . forkIO $ do
@@ -167,3 +166,4 @@ query = do
 
   fromInput inputRes
   liftIO . atomically $ sealRes
+  liftIO $ wait workers

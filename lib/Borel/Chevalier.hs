@@ -36,10 +36,10 @@ import           Borel.Types
 --   to this OpenStack tenancy.
 --
 chevalier :: (MonadIO m, MonadSafe m)
-          => (GroupedMetric, TenancyID)
-          -> Producer (Origin, Address, SourceDict) (BorelS m) ()
-chevalier (metrics, tid) = do
-  params <- lift ask
+          => BorelEnv
+          -> (GroupedMetric, TenancyID)
+          -> Producer (Origin, Address, SourceDict) m ()
+chevalier params (metrics, tid) = do
   let tags = chevalierTags
              (params ^. paramBorelConfig . allInstances)
              (metrics, tid)

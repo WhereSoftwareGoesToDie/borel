@@ -48,12 +48,15 @@ module Borel
   ) where
 
 import           Control.Applicative
+import           Control.Concurrent.Async
+import qualified Control.Exception    as E
 import           Control.Lens
 import           Control.Monad.Reader
 import           Data.Set             (Set)
 import qualified Data.Set             as S
 import           Pipes                hiding (Proxy)
 import qualified Pipes                as P
+import           Pipes.Concurrent
 import qualified Pipes.Prelude        as P
 import           Pipes.Safe
 import           System.Log.Logger
@@ -119,23 +122,52 @@ query = do
   liftIO $ updateGlobalLogger "borel" (setLevel DEBUG)
 
   params <- ask
-  let flavors = params ^. paramBorelConfig . paramFlavorMap
-      start   = params ^. paramStart
-      end     = params ^. paramEnd
-      grouped = groupMetrics
+  (outputWork, inputWork, sealWork) <- liftIO . spawn' $ unbounded
+  (outputRes, inputRes, sealRes) <- liftIO . spawn' $ unbounded
+  let grouped = groupMetrics
               ( params ^. paramBorelConfig . allInstances)
               ( params ^. paramMetrics)
+      defaultFilters = Filters billableStatus
+      producer
+          :: (MonadIO m, MonadSafe m)
+          => Producer (GroupedMetric, Origin, Address, SourceDict) m ()
+      producer = P.enumerate
+        [ (metrics, org, addr, sd)
+        | metrics         <- Select $ P.each grouped
+        , (org, addr, sd) <- Select $ chevalier params (metrics, params ^. paramTID)
+        ]
+      worker
+          :: (MonadIO m, MonadSafe m)
+          => Pipe (GroupedMetric, Origin, Address, SourceDict)
+                  (Metric, ResponseItem)
+                  m
+                  ()
+      worker = forever $ do
+        let flavors = params ^. paramBorelConfig . paramFlavorMap
+            start   = params ^. paramStart
+            end     = params ^. paramEnd
 
-  P.enumerate
-    [ (fst result, mkItem sd result)
-    | metrics         <- Select $ P.each grouped
-    , (org, addr, sd) <- Select $ chevalier (metrics, params ^. paramTID)
-    , result          <- Select $ each' $ ceilometer
-                         flavors metrics
-                         (Env flavors sd defaultFilters start end)
-                         (marquise params (metrics, org, addr))
-    ]
-  where each' :: Monad m => m [a] -> Producer a m ()
-        each' x = lift x >>= P.each
-        defaultFilters = Filters billableStatus
+        (metrics, org, addr, sd) <- await
+        results <- ceilometer flavors metrics
+              (Env flavors sd defaultFilters start end)
+              (marquise params (metrics, org, addr))
+        forM_ results $ \result -> yield (fst result, mkItem sd result)
 
+  -- This hierarchy is necessary to close the buffers in case of an error.
+  pollWorkers <- liftIO . async $ (do
+    workers <- replicateM 8 . async . runSafeT . runEffect $
+                 fromInput inputWork >-> worker >-> toOutput outputRes
+    mapM_ link workers
+    mapM_ wait workers) `E.finally` (atomically $ sealWork >> sealRes)
+  liftIO $ link pollWorkers
+
+  pollProducer <- liftIO . async $
+    (runSafeT . runEffect $ producer >-> toOutput outputWork)
+      `E.finally` atomically sealWork
+  liftIO $ link pollProducer
+
+  fromInput inputRes
+
+  liftIO $ wait pollProducer
+  liftIO . atomically $ sealRes
+  liftIO $ wait pollWorkers

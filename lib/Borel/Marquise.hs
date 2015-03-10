@@ -67,10 +67,7 @@ rangeData
 rangeData ctx uri origin addr start end
   = runMarquiseReader ctx uri
   $ \conn -> hoist liftIO
-           $ void $ M.catchMarquiseAll
-             (M.readSimplePoints (M.ForeverRetry $ 5 * 10^(6 :: Int)) addr start end origin conn)
-             (fail . show)
-
+           $ void (M.readSimplePoints addr start end origin conn)
 
 --------------------------------------------------------------------------------
 

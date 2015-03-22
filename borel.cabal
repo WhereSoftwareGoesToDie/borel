@@ -20,7 +20,7 @@ flag network-uri
 
 source-repository head
   type:                git
-  location:            git@github.com:anchor/borel-core.git
+  location:            git@github.com:anchor/borel.git
 
 library
   hs-source-dirs:    lib

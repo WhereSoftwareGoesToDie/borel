@@ -1,4 +1,4 @@
-name:                borel-core
+name:                borel
 version:             0.18.0
 synopsis:            Metering System for OpenStack metrics provided by Vaultaire.
 description:         Leverages Ceilometer, Chevalier and Marquise to meter OpenStack data.

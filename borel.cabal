@@ -2,7 +2,7 @@ name:                borel
 version:             0.18.0
 synopsis:            Metering System for OpenStack metrics provided by Vaultaire.
 description:         Leverages Ceilometer, Chevalier and Marquise to meter OpenStack data.
-homepage:            https://github.com/anchor/borel-core
+homepage:            https://github.com/anchor/borel
 license:             BSD3
 license-file:        LICENSE
 author:              Anchor Engineering <engineering@anchor.com.au>
@@ -119,4 +119,3 @@ test-suite unit
                    , chevalier-common >= 0.4.0
                    , marquise >= 4.0.0
                    , vaultaire-common >= 2.8.3
-

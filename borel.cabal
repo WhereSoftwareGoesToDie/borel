@@ -101,7 +101,7 @@ test-suite unit
                    , containers >=0.5 && <0.6
                    , unordered-containers >= 0.2.4
                    , configurator >= 0.3
-                   , errors >= 1.4
+                   , errors >= 1.4 && < 2.0
                    , either >= 4.3
                    , hslogger >= 1.2
                    , lens >= 4.6

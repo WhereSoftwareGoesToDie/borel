@@ -1,5 +1,5 @@
 name:                borel
-version:             0.18.0
+version:             0.18.2
 synopsis:            Metering System for OpenStack metrics provided by Vaultaire.
 description:         Leverages Ceilometer, Chevalier and Marquise to meter OpenStack data.
 homepage:            https://github.com/anchor/borel
@@ -67,7 +67,7 @@ library
                    , zeromq4-haskell >= 0.6.3
                    , ceilometer-common >= 0.2.2
                    , chevalier-common >= 0.4.0
-                   , marquise >= 4.0.0
+                   , marquise >= 4.1.1
                    , vaultaire-common >= 2.8.3
 
   ghc-options:       -O2
@@ -117,5 +117,5 @@ test-suite unit
                    , zeromq4-haskell >= 0.6.3
                    , ceilometer-common >= 0.2.2
                    , chevalier-common >= 0.4.0
-                   , marquise >= 4.0.0
+                   , marquise >= 4.1.1
                    , vaultaire-common >= 2.8.3

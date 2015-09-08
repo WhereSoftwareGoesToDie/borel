@@ -131,7 +131,6 @@ query = do
       user = conf ^. paramCandideUser
       pass = conf ^. paramCandidePass
       org  = conf ^. paramOrigin
-
   liftIO $ debugM "borel" ("setting up candide connection to "
                            <> host <> ":" <> show port)
 

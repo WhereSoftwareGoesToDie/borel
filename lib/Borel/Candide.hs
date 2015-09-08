@@ -17,7 +17,6 @@ module Borel.Candide
 where
 
 import           Control.Lens
-import           Control.Monad.Trans.Control
 import           Data.Monoid
 import           Data.Pool
 import           Data.Set                   (Set)

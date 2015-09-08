@@ -106,14 +106,14 @@ instance Read TenancyID where
 --   (can be reloaded).
 --
 data BorelConfig = BorelConfig
-  { _paramOrigin       :: Origin
-  , _paramCandideHost  :: String
-  , _paramCandidePort  :: Word16
-  , _paramCandideUser  :: String
-  , _paramCandidePass  :: String
-  , _paramFlavorMap    :: FlavorMap
-  , _allInstances      :: Set Metric
-  , _allMetrics        :: Set Metric }
+  { _paramOrigin      :: Origin
+  , _paramCandideHost :: String
+  , _paramCandidePort :: Word16
+  , _paramCandideUser :: String
+  , _paramCandidePass :: String
+  , _paramFlavorMap   :: FlavorMap
+  , _allInstances     :: Set Metric
+  , _allMetrics       :: Set Metric }
 
 makeLenses ''BorelConfig
 

@@ -18,7 +18,6 @@ import           System.Log.Logger
 
 -- friends
 import           Ceilometer.Client
-import           Vaultaire.Types
 
 import           Borel.Ceilometer.Instance
 import           Borel.Types

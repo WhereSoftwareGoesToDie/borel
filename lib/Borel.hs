@@ -28,7 +28,7 @@ module Borel
   , BorelConfig(..)
   , mkBorelConfig, parseBorelConfig, loadBorelConfig
   , allInstances, allMetrics
-  , paramBorelConfig, paramFlavorMap, paramOrigins, paramMarquiseURI, paramChevalierURI
+  , paramBorelConfig, paramFlavorMap, paramOrigin
 
     -- * Query arguments
   , BorelEnv
@@ -49,26 +49,28 @@ module Borel
 
 import           Control.Applicative
 import           Control.Concurrent.Async
-import qualified Control.Exception    as E
+import qualified Control.Exception          as E
 import           Control.Lens
 import           Control.Monad.Reader
-import           Data.Set             (Set)
-import qualified Data.Set             as S
-import           Pipes                hiding (Proxy)
-import qualified Pipes                as P
+import           Data.Monoid
+import           Data.Pool
+import           Data.Set                   (Set)
+import qualified Data.Set                   as S
+import           Database.PostgreSQL.Simple as PG hiding (query)
+import           Pipes                      hiding (Proxy)
+import qualified Pipes                      as P
 import           Pipes.Concurrent
-import qualified Pipes.Prelude        as P
+import qualified Pipes.Prelude              as P
 import           Pipes.Safe
 import           System.Log.Logger
 
 -- friends
+import           Candide.Core
 import           Ceilometer.Client
-import           Vaultaire.Types
 
 -- family
+import           Borel.Candide
 import           Borel.Ceilometer
-import           Borel.Chevalier
-import           Borel.Marquise
 import           Borel.Types
 
 
@@ -122,6 +124,24 @@ query = do
   liftIO $ updateGlobalLogger "borel" (setLevel DEBUG)
 
   params <- ask
+
+  let conf = params ^. paramBorelConfig
+      host = conf ^. paramCandideHost
+      port = conf ^. paramCandidePort
+      user = conf ^. paramCandideUser
+      pass = conf ^. paramCandidePass
+      org  = conf ^. paramOrigin
+
+  liftIO $ debugM "borel" ("setting up candide connection to "
+                           <> host <> ":" <> show port)
+
+  connPool <- liftIO $ createPool
+                         (candideConnection host port user pass (Just org))
+                         PG.close --close postgres connection
+                         1        --one stripe
+                         5        --keep unused open for 5 seconds
+                         10       --max connection count of 10
+
   (outputWork, inputWork, sealWork) <- liftIO . spawn' $ bounded 1
   (outputRes, inputRes, sealRes) <- liftIO . spawn' $ bounded 1
   let grouped = groupMetrics
@@ -130,15 +150,15 @@ query = do
       defaultFilters = Filters billableStatus
       producer
           :: (MonadIO m, MonadSafe m)
-          => Producer (GroupedMetric, Origin, Address, SourceDict) m ()
+          => Producer (GroupedMetric, Address, SourceDict) m ()
       producer = P.enumerate
-        [ (metrics, org, addr, sd)
+        [ (metrics, addr, sd)
         | metrics         <- Select $ P.each grouped
-        , (org, addr, sd) <- Select $ chevalier params (metrics, params ^. paramTID)
+        , (addr, sd) <- Select $ findAddrSd params connPool (metrics, params ^. paramTID)
         ]
       worker
           :: (MonadIO m, MonadSafe m)
-          => Pipe (GroupedMetric, Origin, Address, SourceDict)
+          => Pipe (GroupedMetric, Address, SourceDict)
                   (Metric, ResponseItem)
                   m
                   ()
@@ -147,10 +167,11 @@ query = do
             start   = params ^. paramStart
             end     = params ^. paramEnd
 
-        (metrics, org, addr, sd) <- await
+        (metrics, addr, sd) <- await
+
         results <- ceilometer flavors metrics
               (Env flavors sd defaultFilters start end)
-              (marquise params (metrics, org, addr))
+              (candide params connPool (metrics, org, addr))
         forM_ results $ \result -> yield (fst result, mkItem sd result)
 
   -- This hierarchy is necessary to close the buffers in case of an error.

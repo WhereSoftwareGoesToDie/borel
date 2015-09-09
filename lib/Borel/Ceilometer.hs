@@ -8,17 +8,16 @@ where
 
 import           Control.Applicative
 import           Control.Monad.Reader
-import qualified Data.Bimap           as BM
-import qualified Data.List            as L
-import qualified Data.Map             as M
+import qualified Data.Bimap                as BM
+import qualified Data.List                 as L
+import qualified Data.Map                  as M
 import           Data.Maybe
 import           Data.Monoid
-import           Pipes                hiding (Proxy)
+import           Pipes                     hiding (Proxy)
 import           System.Log.Logger
 
 -- friends
 import           Ceilometer.Client
-import           Vaultaire.Types
 
 import           Borel.Ceilometer.Instance
 import           Borel.Types

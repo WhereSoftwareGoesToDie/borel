@@ -28,9 +28,8 @@ module Borel.Types
   , allInstances, allMetrics
   , paramBorelConfig
   , paramFlavorMap
-  , paramOrigins
-  , paramMarquiseURI, paramChevalierURI
-  , paramZMQContext
+  , paramOrigin
+  , paramCandideHost, paramCandidePort, paramCandideUser, paramCandidePass
 
     -- * Query arguments
   , BorelEnv
@@ -68,11 +67,11 @@ import qualified Data.Text.Encoding      as T
 import           Data.Time.Clock
 import           Data.Time.Clock.POSIX
 import qualified Data.Traversable        as T
+import           Data.Word
 import           Network.URI
 import           Pipes
 import           Pipes.Lift
 import           Pipes.Safe
-import qualified System.ZMQ4             as Z
 
 import           Ceilometer.Types
 import           Marquise.Types
@@ -107,19 +106,20 @@ instance Read TenancyID where
 --   (can be reloaded).
 --
 data BorelConfig = BorelConfig
-  { _paramOrigins      :: Set Origin
-  , _paramZMQContext   :: Z.Context
-  , _paramMarquiseURI  :: URI
-  , _paramChevalierURI :: URI
-  , _paramFlavorMap    :: FlavorMap
-  , _allInstances      :: Set Metric
-  , _allMetrics        :: Set Metric }
+  { _paramOrigin      :: Origin
+  , _paramCandideHost :: String
+  , _paramCandidePort :: Word16
+  , _paramCandideUser :: String
+  , _paramCandidePass :: String
+  , _paramFlavorMap   :: FlavorMap
+  , _allInstances     :: Set Metric
+  , _allMetrics       :: Set Metric }
 
 makeLenses ''BorelConfig
 
-mkBorelConfig :: Set Origin -> Z.Context -> URI -> URI -> FlavorMap -> BorelConfig
-mkBorelConfig org ctx marq chev fm
-  = BorelConfig org ctx marq chev fm (S.fromList fs) (S.fromList ms)
+mkBorelConfig :: Origin -> String -> Word16 -> String -> String -> FlavorMap -> BorelConfig
+mkBorelConfig org host port user pass fm
+  = BorelConfig org host port user pass fm (S.fromList fs) (S.fromList ms)
   where ms :: [Metric]
         ms = fs <>
           [ diskReads, diskWrites
@@ -133,18 +133,19 @@ mkBorelConfig org ctx marq chev fm
 parseBorelConfig :: C.Config -> IO (Either BorelError BorelConfig)
 parseBorelConfig raw = do
   flavors <- enumFlavors raw
-  context <- Z.context
-
-  liftM5 mkBorelConfig
-    <$> (note (ConfigLoad "cannot read list of origins") <$> C.lookup raw nameOrigins)
-    <*> return (Right context)
-    <*> (note (ConfigLoad "cannot read Marquise URI")    <$> C.lookup raw nameMarquise)
-    <*> (note (ConfigLoad "cannot read Chevalier URI")   <$> C.lookup raw nameChevalier)
+  liftM6 mkBorelConfig
+    <$> (note (ConfigLoad "cannot read origin")          <$> C.lookup raw nameOrigin)
+    <*> (note (ConfigLoad "cannot read postgres host")   <$> C.lookup raw nameHost)
+    <*> (note (ConfigLoad "cannot read postgres port")   <$> C.lookup raw namePort)
+    <*> (note (ConfigLoad "cannot read postgres user")   <$> C.lookup raw nameUser)
+    <*> (note (ConfigLoad "cannot read postgres pass")   <$> C.lookup raw namePass)
     <*> (note (ConfigLoad "cannot read flavors")         <$> (fmap mkFM . T.sequenceA <$> mapM lookupFlavor flavors))
 
-  where nameOrigins     = "origins"
-        nameMarquise    = "marquise-reader-uri"
-        nameChevalier   = "chevalier-uri"
+  where nameOrigin      = "origin"
+        nameHost        = "postgres-host"
+        namePort        = "postgres-port"
+        nameUser        = "postgres-user"
+        namePass        = "postgres-pass"
         nameFlavorGroup = "flavors."
 
         lookupFlavor :: C.Name -> IO (Maybe (Text, Text))
@@ -162,6 +163,10 @@ parseBorelConfig raw = do
             $ map (T.takeWhile (/= '.') . fromMaybe "" . T.stripPrefix nameFlavorGroup)
             $ HM.keys
             $ HM.filterWithKey (\k _ -> nameFlavorGroup `T.isPrefixOf` k) m
+
+        -- Do not just lest ye be judged
+        liftM6  :: (Monad m) => (a1 -> a2 -> a3 -> a4 -> a5 -> a6 -> r) -> m a1 -> m a2 -> m a3 -> m a4 -> m a5 -> m a6 -> m r
+        liftM6 f m1 m2 m3 m4 m5 m6 = do { x1 <- m1; x2 <- m2; x3 <- m3; x4 <- m4; x5 <- m5; x6 <- m6; return (f x1 x2 x3 x4 x5 x6) }
 
 
 loadBorelConfig :: FilePath -> IO (Either BorelError (BorelConfig, ThreadId))

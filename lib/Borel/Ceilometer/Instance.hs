@@ -2,7 +2,7 @@
 
 module Borel.Ceilometer.Instance where
 
-import Ceilometer.Types
+import           Ceilometer.Types
 
 billableStatus :: PFInstanceStatus -> Bool
 billableStatus InstanceError            = False

@@ -121,7 +121,7 @@ runF f conf ms tid s e = runBorel conf ms tid s e (query >-> P.map f)
 query :: (Applicative m, MonadSafe m, MonadIO m)
       =>  Producer (Metric, ResponseItem) (BorelS m) ()
 query = do
-  liftIO $ updateGlobalLogger "borel" (setLevel DEBUG)
+  liftIO $ updateGlobalLogger "borel" (setLevel WARNING)
 
   params <- ask
 
@@ -138,8 +138,8 @@ query = do
                          (candideConnection host port user pass (Just org))
                          PG.close --close postgres connection
                          1        --one stripe
-                         5        --keep unused open for 5 seconds
-                         10       --max connection count of 10
+                         2        --keep unused open for 2 seconds
+                         4       --max connection count of 4
 
   (outputWork, inputWork, sealWork) <- liftIO . spawn' $ bounded 1
   (outputRes, inputRes, sealRes) <- liftIO . spawn' $ bounded 1

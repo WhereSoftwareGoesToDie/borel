@@ -138,8 +138,8 @@ query = do
                          (candideConnection host port user pass (Just org))
                          PG.close --close postgres connection
                          1        --one stripe
-                         2        --keep unused open for 2 seconds
-                         4       --max connection count of 4
+                         10       --keep unused open for 10 seconds
+                         1        --max connection count of 1
 
   (outputWork, inputWork, sealWork) <- liftIO . spawn' $ bounded 1
   (outputRes, inputRes, sealRes) <- liftIO . spawn' $ bounded 1

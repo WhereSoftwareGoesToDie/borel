@@ -138,8 +138,8 @@ query = do
                          (candideConnection host port user pass (Just org))
                          PG.close --close postgres connection
                          1        --one stripe
-                         10       --keep unused open for 10 seconds
-                         1        --max connection count of 1
+                         2        --keep unused open for 2 seconds
+                         4        --max connection count of 4
 
   (outputWork, inputWork, sealWork) <- liftIO . spawn' $ bounded 1
   (outputRes, inputRes, sealRes) <- liftIO . spawn' $ bounded 1
@@ -175,7 +175,7 @@ query = do
 
   -- This hierarchy is necessary to close the buffers in case of an error.
   pollWorkers <- liftIO . async $ (do
-    workers <- replicateM 8 . async . runSafeT . runEffect $
+    workers <- replicateM 1 . async . runSafeT . runEffect $
                  fromInput inputWork >-> worker >-> toOutput outputRes
     mapM_ link workers
     mapM_ wait workers) `E.finally` (atomically $ sealWork >> sealRes)

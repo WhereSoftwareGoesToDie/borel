@@ -29,6 +29,7 @@ module Borel.Types
   , paramBorelConfig
   , paramFlavorMap
   , paramOrigin
+  , paramWorkers
   , paramCandideHost, paramCandidePort, paramCandideUser, paramCandidePass
 
     -- * Query arguments

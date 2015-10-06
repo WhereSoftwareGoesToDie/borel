@@ -64,6 +64,7 @@ library
                    , text >= 1.2
                    , time >= 1.4
                    , transformers >= 0.3
+                   , transformers-compat >= 0.4
                    , resource-pool
                    , vector >= 0.10
                    , zeromq4-haskell >= 0.6.3

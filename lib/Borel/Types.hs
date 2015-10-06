@@ -29,6 +29,7 @@ module Borel.Types
   , paramBorelConfig
   , paramFlavorMap
   , paramOrigin
+  , paramWorkers
   , paramCandideHost, paramCandidePort, paramCandideUser, paramCandidePass
 
     -- * Query arguments
@@ -50,7 +51,10 @@ import           Control.Applicative
 import           Control.Concurrent      (ThreadId)
 import           Control.Error.Util
 import           Control.Lens            (makeLenses, mapped, over, _2)
+import           Control.Monad.Error.Class
 import           Control.Monad.Reader
+import           Control.Monad.Trans.Except
+import           Control.Monad.Trans.Maybe
 import           Data.Aeson
 import qualified Data.Bimap              as BM
 import qualified Data.Configurator       as C
@@ -106,7 +110,8 @@ instance Read TenancyID where
 --   (can be reloaded).
 --
 data BorelConfig = BorelConfig
-  { _paramOrigin      :: Origin
+  { _paramWorkers     :: Int
+  , _paramOrigin      :: Origin
   , _paramCandideHost :: String
   , _paramCandidePort :: Word16
   , _paramCandideUser :: String
@@ -117,9 +122,9 @@ data BorelConfig = BorelConfig
 
 makeLenses ''BorelConfig
 
-mkBorelConfig :: Origin -> String -> Word16 -> String -> String -> FlavorMap -> BorelConfig
-mkBorelConfig org host port user pass fm
-  = BorelConfig org host port user pass fm (S.fromList fs) (S.fromList ms)
+mkBorelConfig :: Int -> Origin -> String -> Word16 -> String -> String -> FlavorMap -> BorelConfig
+mkBorelConfig workers org host port user pass fm
+  = BorelConfig workers org host port user pass fm (S.fromList fs) (S.fromList ms)
   where ms :: [Metric]
         ms = fs <>
           [ diskReads, diskWrites
@@ -131,42 +136,45 @@ mkBorelConfig org host port user pass fm
         fs = map mkInstance (BM.keys fm)
 
 parseBorelConfig :: C.Config -> IO (Either BorelError BorelConfig)
-parseBorelConfig raw = do
+parseBorelConfig raw = runExceptT $ do
   flavors <- enumFlavors raw
-  liftM6 mkBorelConfig
-    <$> (note (ConfigLoad "cannot read origin")          <$> C.lookup raw nameOrigin)
-    <*> (note (ConfigLoad "cannot read postgres host")   <$> C.lookup raw nameHost)
-    <*> (note (ConfigLoad "cannot read postgres port")   <$> C.lookup raw namePort)
-    <*> (note (ConfigLoad "cannot read postgres user")   <$> C.lookup raw nameUser)
-    <*> (note (ConfigLoad "cannot read postgres pass")   <$> C.lookup raw namePass)
-    <*> (note (ConfigLoad "cannot read flavors")         <$> (fmap mkFM . T.sequenceA <$> mapM lookupFlavor flavors))
+  mkBorelConfig
+    <$> lookup' "cannot read number of workers" nameWorkers
+    <*> lookup' "cannot read origin"            nameOrigin
+    <*> lookup' "cannot read postgres host"     nameHost
+    <*> lookup' "cannot read postgres port"     namePort
+    <*> lookup' "cannot read postgres user"     nameUser
+    <*> lookup' "cannot read postgres pass"     namePass
+    <*> (mkFM <$> mapM lookupFlavor flavors)
 
-  where nameOrigin      = "origin"
+  where nameWorkers     = "num-workers"
+        nameOrigin      = "origin"
         nameHost        = "postgres-host"
         namePort        = "postgres-port"
         nameUser        = "postgres-user"
         namePass        = "postgres-pass"
         nameFlavorGroup = "flavors."
 
-        lookupFlavor :: C.Name -> IO (Maybe (Text, Text))
-        lookupFlavor name
-          =   fmap (name,)
-          <$> C.lookup raw (nameFlavorGroup <> name <> ".id")
+        lookup' :: (C.Configured a) => Text -> C.Name -> ExceptT BorelError IO a
+        lookup' err name = do
+          res <- liftIO $ C.lookup raw name
+          case res of
+            Just x  -> return x
+            Nothing -> throwError (ConfigLoad err)
+
+        lookupFlavor :: C.Name -> ExceptT BorelError IO (Text, Text)
+        lookupFlavor name = lookup' "cannot read flavors" (nameFlavorGroup <> name <> ".id")
 
         mkFM :: [(Text, Text)] -> FlavorMap
         mkFM = BM.fromList . over (mapped._2) siphashID
 
         enumFlavors conf = do
-          m <- C.getMap conf
+          m <- liftIO $ C.getMap conf
           return
             $ L.nub
             $ map (T.takeWhile (/= '.') . fromMaybe "" . T.stripPrefix nameFlavorGroup)
             $ HM.keys
             $ HM.filterWithKey (\k _ -> nameFlavorGroup `T.isPrefixOf` k) m
-
-        -- Do not just lest ye be judged
-        liftM6  :: (Monad m) => (a1 -> a2 -> a3 -> a4 -> a5 -> a6 -> r) -> m a1 -> m a2 -> m a3 -> m a4 -> m a5 -> m a6 -> m r
-        liftM6 f m1 m2 m3 m4 m5 m6 = do { x1 <- m1; x2 <- m2; x3 <- m3; x4 <- m4; x5 <- m5; x6 <- m6; return (f x1 x2 x3 x4 x5 x6) }
 
 
 loadBorelConfig :: FilePath -> IO (Either BorelError (BorelConfig, ThreadId))

@@ -125,12 +125,13 @@ query = do
 
   params <- ask
 
-  let conf = params ^. paramBorelConfig
-      host = conf ^. paramCandideHost
-      port = conf ^. paramCandidePort
-      user = conf ^. paramCandideUser
-      pass = conf ^. paramCandidePass
-      org  = conf ^. paramOrigin
+  let conf    = params ^. paramBorelConfig
+      host    = conf ^. paramCandideHost
+      port    = conf ^. paramCandidePort
+      user    = conf ^. paramCandideUser
+      pass    = conf ^. paramCandidePass
+      org     = conf ^. paramOrigin
+      workers = conf ^. paramWorkers
   liftIO $ debugM "borel" ("setting up candide connection to "
                            <> host <> ":" <> show port)
 
@@ -139,7 +140,7 @@ query = do
                          PG.close --close postgres connection
                          1        --one stripe
                          2        --keep unused open for 2 seconds
-                         4       --max connection count of 4
+                         workers  --max connection count
 
   (outputWork, inputWork, sealWork) <- liftIO . spawn' $ bounded 1
   (outputRes, inputRes, sealRes) <- liftIO . spawn' $ bounded 1
@@ -175,7 +176,7 @@ query = do
 
   -- This hierarchy is necessary to close the buffers in case of an error.
   pollWorkers <- liftIO . async $ (do
-    workers <- replicateM 8 . async . runSafeT . runEffect $
+    workers <- replicateM workers . async . runSafeT . runEffect $
                  fromInput inputWork >-> worker >-> toOutput outputRes
     mapM_ link workers
     mapM_ wait workers) `E.finally` (atomically $ sealWork >> sealRes)

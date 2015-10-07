@@ -160,10 +160,11 @@ parseBorelConfig raw = runExceptT $ do
           res <- liftIO $ C.lookup raw name
           case res of
             Just x  -> return x
-            Nothing -> throwError (ConfigLoad err)
+            Nothing -> throwError (ConfigLoad (err <> " " <> name))
 
         lookupFlavor :: C.Name -> ExceptT BorelError IO (Text, Text)
-        lookupFlavor name = lookup' "cannot read flavors" (nameFlavorGroup <> name <> ".id")
+        lookupFlavor name =
+          (name,) <$> lookup' "cannot read flavors" (nameFlavorGroup <> name <> ".id")
 
         mkFM :: [(Text, Text)] -> FlavorMap
         mkFM = BM.fromList . over (mapped._2) siphashID

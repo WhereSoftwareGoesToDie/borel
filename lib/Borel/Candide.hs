@@ -60,16 +60,8 @@ candide params connPool (metrics, origin, addr) = do
                            <> show origin
                            <> " addr="
                            <> show addr)
-  withResource' connPool $ \conn -> readSimple conn addr start end
-
-withResource' :: (MonadSafe m) => Pool a -> (a -> m b) -> m b
-withResource' pool act = do
-  (resource, local) <- liftIO $ takeResource pool
-  ret <- act resource `onException`
-    liftIO (destroyResource pool local resource)
-  liftIO $ putResource local resource
-  return ret
-{-# INLINABLE withResource' #-}
+  res <- liftIO $ withResource connPool $ \conn -> readSimple conn addr start end
+  Pipes.each res
 
 --------------------------------------------------------------------------------
 
@@ -83,7 +75,8 @@ findAddrSd params connPool (metrics, tid) = do
              (params ^. paramBorelConfig . allInstances)
              (metrics, tid)
   liftIO $ debugM "borel" ("searching candide with tags=" <> show tags)
-  withResource' connPool $ \conn -> searchTags conn tags
+  addrSds <- liftIO $ withResource connPool $ \conn -> searchTags conn tags
+  Pipes.each addrSds
 
 -- | Converts a GroupedMetric and a TenancyID into a list of cheavlier tags
 --   Also requires a set of the currently configured instance flavors

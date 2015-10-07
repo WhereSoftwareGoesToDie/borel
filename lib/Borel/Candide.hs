@@ -45,22 +45,31 @@ candide :: (MonadIO m, MonadSafe m)
         -> Producer SimplePoint m ()
 candide params connPool (metrics, origin, addr) = do
   let end     = params ^. paramEnd
-  eventList <- liftIO $ withResource connPool $ \conn -> readSimple conn addr (TimeStamp 0)          end
-  pointList <- liftIO $ withResource connPool $ \conn -> readSimple conn addr (params ^. paramStart) end
-  let events = Pipes.each eventList
-      points = Pipes.each pointList
+  let eventStart = TimeStamp 0
+  let pointstart = params ^. paramStart
+  let start = case metrics of
+        [metric] -> if
+          | metric == block    -> eventStart
+          | metric == ssd      -> eventStart
+          | metric == ipv4     -> eventStart
+          | metric == snapshot -> eventStart
+          | otherwise          -> pointstart
+        _                      -> pointstart
+
   liftIO $ debugM "borel" ("fetching from candide with origin="
                            <> show origin
                            <> " addr="
                            <> show addr)
-  case metrics of
-      [metric] -> if
-        | metric == block    -> events
-        | metric == ssd      -> events
-        | metric == ipv4     -> events
-        | metric == snapshot -> events
-        | otherwise          -> points
-      _                      -> points
+  withResource' connPool $ \conn -> readSimple conn addr start end
+
+withResource' :: (MonadSafe m) => Pool a -> (a -> m b) -> m b
+withResource' pool act = do
+  (resource, local) <- liftIO $ takeResource pool
+  ret <- act resource `onException`
+    liftIO (destroyResource pool local resource)
+  liftIO $ putResource local resource
+  return ret
+{-# INLINABLE withResource' #-}
 
 --------------------------------------------------------------------------------
 
@@ -74,8 +83,7 @@ findAddrSd params connPool (metrics, tid) = do
              (params ^. paramBorelConfig . allInstances)
              (metrics, tid)
   liftIO $ debugM "borel" ("searching candide with tags=" <> show tags)
-  addrSds <- liftIO $ withResource connPool $ \conn -> searchTags conn tags
-  Pipes.each addrSds
+  withResource' connPool $ \conn -> searchTags conn tags
 
 -- | Converts a GroupedMetric and a TenancyID into a list of cheavlier tags
 --   Also requires a set of the currently configured instance flavors

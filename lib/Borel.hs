@@ -142,8 +142,8 @@ query = do
                          2        --keep unused open for 2 seconds
                          workers  --max connection count
 
-  (outputWork, inputWork, sealWork) <- liftIO . spawn' $ bounded 1
-  (outputRes, inputRes, sealRes) <- liftIO . spawn' $ bounded 1
+  (outputWork, inputWork, sealWork) <- liftIO . spawn' $ bounded workers -- Don't stall workers
+  (outputRes, inputRes, sealRes) <- liftIO . spawn' $ unbounded -- Results are small
   let grouped = groupMetrics
               ( params ^. paramBorelConfig . allInstances)
               ( params ^. paramMetrics)
